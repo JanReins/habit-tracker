@@ -4,12 +4,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.Icon
@@ -21,11 +23,15 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -34,6 +40,7 @@ import com.janreins.habitude.domain.DayMark
 import com.janreins.habitude.domain.HabitType
 import com.janreins.habitude.domain.HabitWithEntries
 import com.janreins.habitude.domain.Milestones
+import com.janreins.habitude.domain.Notes
 import com.janreins.habitude.domain.Stats
 import com.janreins.habitude.domain.Streaks
 import com.janreins.habitude.ui.HabitsViewModel
@@ -107,6 +114,7 @@ fun HabitDetailScreen(
             item,
             onSetEntry = { day, present -> viewModel.setEntry(habitId, day, present) },
             onAddCount = { day, delta -> viewModel.addCount(habitId, day, delta) },
+            onSetNote = { day, text -> viewModel.setNote(habitId, day, text) },
         )
     }
 }
@@ -116,8 +124,10 @@ private fun HabitStats(
     item: HabitWithEntries,
     onSetEntry: (LocalDate, Boolean) -> Unit,
     onAddCount: (LocalDate, Int) -> Unit,
+    onSetNote: (LocalDate, String) -> Unit,
 ) {
     val today = rememberToday()
+    var noteFor by rememberSaveable { mutableStateOf<LocalDate?>(null) }
     val palette = chartPalette()
     val habit = item.habit
     val isBuild = habit.type == HabitType.BUILD
@@ -174,6 +184,14 @@ private fun HabitStats(
             action = { day ->
                 // Forgot to log a day? Fix it here. Days before the habit started stay empty.
                 val target = habit.dailyTarget
+                if (!day.isBefore(habit.createdOn)) {
+                    IconButton(onClick = { noteFor = day }) {
+                        Icon(
+                            Icons.Outlined.EditNote,
+                            contentDescription = if (day in item.notes) "Edit note" else "Add a note",
+                        )
+                    }
+                }
                 if (!day.isBefore(habit.createdOn) && target != null) {
                     val count = item.countOn(day)
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -196,6 +214,15 @@ private fun HabitStats(
                             },
                         )
                     }
+                }
+            },
+            details = { day ->
+                item.notes[day]?.let { note ->
+                    Text(
+                        "“$note”",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontStyle = FontStyle.Italic,
+                    )
                 }
             },
         )
@@ -256,6 +283,8 @@ private fun HabitStats(
 
     MilestonesCard(item, today)
 
+    NotesCard(item, today, isBuild, onOpen = { noteFor = it })
+
     val runs = remember(item, today) { Stats.runs(item, today) }
     ChartCard(
         when {
@@ -272,6 +301,59 @@ private fun HabitStats(
             )
         } else {
             StreakHistory(runs, color)
+        }
+    }
+
+    noteFor?.let { day ->
+        NoteDialog(
+            day = day,
+            initial = item.notes[day].orEmpty(),
+            placeholder = if (isBuild) "How did it go?" else "What led to it? Where were you, how did you feel?",
+            onSave = { text ->
+                onSetNote(day, text)
+                noteFor = null
+            },
+            onDismiss = { noteFor = null },
+        )
+    }
+}
+
+/** The latest notes on this habit, newest first. Tap one to change it. */
+@Composable
+private fun NotesCard(item: HabitWithEntries, today: LocalDate, isBuild: Boolean, onOpen: (LocalDate) -> Unit) {
+    val notes = remember(item) { Notes.recent(item) }
+    ChartCard("Notes") {
+        if (notes.isEmpty()) {
+            Text(
+                if (isBuild) {
+                    "Tap a day on the calendar, then the note button, to jot down how it went."
+                } else {
+                    "Tap a slip on the calendar, then the note button, to write what led to it. Patterns show up over time."
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                notes.forEach { (day, note) ->
+                    val mark = Stats.dayMark(item, day, today)
+                    Surface(
+                        onClick = { onOpen(day) },
+                        shape = MaterialTheme.shapes.small,
+                        color = MaterialTheme.colorScheme.surface,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                            Text(
+                                dayCaption(day, mark),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(note, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+            }
         }
     }
 }

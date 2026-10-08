@@ -36,7 +36,7 @@ data class HeatCell(val fill: Color?, val outlined: Boolean = false, val dot: Bo
 /**
  * A GitHub-style calendar: one column per week (Monday at the top), the current week on
  * the right. Tap a day to see what happened in the caption underneath, next to anything
- * [action] puts there for that day (such as a button to change it).
+ * [action] puts there for that day (such as a button to change it), with [details] below.
  */
 @Composable
 fun CalendarHeatmap(
@@ -47,6 +47,7 @@ fun CalendarHeatmap(
     modifier: Modifier = Modifier,
     hint: String = "Tap a day to see it",
     action: @Composable (LocalDate) -> Unit = {},
+    details: @Composable (LocalDate) -> Unit = {},
 ) {
     val firstDay = Stats.weekStart(today).minusWeeks((weeks - 1).toLong())
     var selected by remember(today, weeks) { mutableStateOf<LocalDate?>(null) }
@@ -136,5 +137,6 @@ fun CalendarHeatmap(
             )
             selected?.let { action(it) }
         }
+        selected?.let { details(it) }
     }
 }

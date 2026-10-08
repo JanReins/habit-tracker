@@ -57,8 +57,29 @@ class Settings(context: Context) {
         get() = prefs.getBoolean(KEY_MILESTONES_STARTED, false)
         set(value) = prefs.edit().putBoolean(KEY_MILESTONES_STARTED, value).apply()
 
+    /** Unlock with a fingerprint or face as well as the PIN. Only meaningful while a PIN is set. */
+    var biometricUnlock: Boolean
+        get() = prefs.getBoolean(KEY_BIOMETRIC, false)
+        set(value) = prefs.edit().putBoolean(KEY_BIOMETRIC, value).apply()
+
+    /** The folder picked for automatic weekly backups (a document tree URI), or null when off. */
+    var autoBackupFolder: String?
+        get() = prefs.getString(KEY_AUTO_BACKUP_FOLDER, null)
+        set(value) = prefs.edit().putString(KEY_AUTO_BACKUP_FOLDER, value).apply()
+
+    /** When the last automatic backup was saved (epoch ms), or 0 if never. */
+    var lastAutoBackup: Long
+        get() = prefs.getLong(KEY_LAST_AUTO_BACKUP, 0L)
+        set(value) = prefs.edit().putLong(KEY_LAST_AUTO_BACKUP, value).apply()
+
+    /** Whether the last automatic backup attempt failed, e.g. because the folder is gone. */
+    var autoBackupFailed: Boolean
+        get() = prefs.getBoolean(KEY_AUTO_BACKUP_FAILED, false)
+        set(value) = prefs.edit().putBoolean(KEY_AUTO_BACKUP_FAILED, value).apply()
+
     fun clearPin() {
         prefs.edit()
+            .remove(KEY_BIOMETRIC)
             .remove(KEY_PIN_SALT)
             .remove(KEY_PIN_HASH)
             .remove(KEY_PIN_FAILURES)
@@ -73,6 +94,10 @@ class Settings(context: Context) {
         const val KEY_PIN_FAILURES = "pin_failures"
         const val KEY_PIN_LOCKED_UNTIL = "pin_locked_until"
         const val KEY_MILESTONE = "milestone_"
+        const val KEY_BIOMETRIC = "biometric_unlock"
+        const val KEY_AUTO_BACKUP_FOLDER = "auto_backup_folder"
+        const val KEY_LAST_AUTO_BACKUP = "last_auto_backup"
+        const val KEY_AUTO_BACKUP_FAILED = "auto_backup_failed"
         const val KEY_MILESTONES_STARTED = "milestones_started"
     }
 }

@@ -25,6 +25,11 @@ class HabitsViewModel(private val repository: HabitRepository) : ViewModel() {
         viewModelScope.launch { repository.setEntry(habitId, day, present) }
     }
 
+    /** Writes a note on a day, or removes it when [text] is blank. */
+    fun setNote(habitId: Long, day: LocalDate, text: String) {
+        viewModelScope.launch { repository.setNote(habitId, day, text) }
+    }
+
     /** Counts a counted habit up or down on a past day. */
     fun addCount(habitId: Long, day: LocalDate, delta: Int) {
         viewModelScope.launch { repository.addCount(habitId, day, delta) }

@@ -81,4 +81,19 @@ interface HabitDao {
 
     @Query("DELETE FROM day_counts")
     suspend fun deleteAllCounts()
+
+    @Query("SELECT * FROM notes")
+    fun observeNotes(): Flow<List<NoteEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertNote(note: NoteEntity)
+
+    @Query("DELETE FROM notes WHERE habitId = :habitId AND epochDay = :epochDay")
+    suspend fun deleteNote(habitId: Long, epochDay: Long)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertNotes(notes: List<NoteEntity>)
+
+    @Query("DELETE FROM notes")
+    suspend fun deleteAllNotes()
 }

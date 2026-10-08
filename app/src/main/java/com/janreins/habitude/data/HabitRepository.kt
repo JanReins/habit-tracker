@@ -4,6 +4,7 @@ import com.janreins.habitude.domain.Counts
 import com.janreins.habitude.domain.Habit
 import com.janreins.habitude.domain.HabitType
 import com.janreins.habitude.domain.HabitWithEntries
+import com.janreins.habitude.domain.Notes
 import com.janreins.habitude.domain.PastSchedule
 import com.janreins.habitude.domain.Schedule
 import kotlinx.coroutines.flow.Flow
@@ -21,15 +22,18 @@ class HabitRepository(private val db: HabitudeDatabase) {
             dao.observeEntries(),
             dao.observePastSchedules(),
             dao.observeCounts(),
-        ) { habits, entries, past, counts ->
+            dao.observeNotes(),
+        ) { habits, entries, past, counts, notes ->
             val byHabit = entries.groupBy({ it.habitId }, { LocalDate.ofEpochDay(it.epochDay) })
             val pastByHabit = past.groupBy { it.habitId }
             val countsByHabit = counts.groupBy { it.habitId }
+            val notesByHabit = notes.groupBy { it.habitId }
             habits.map {
                 HabitWithEntries(
                     habit = it.toDomain(pastByHabit[it.id].orEmpty()),
                     entries = byHabit[it.id].orEmpty().toSet(),
                     counts = countsByHabit[it.id].orEmpty().associate { c -> LocalDate.ofEpochDay(c.epochDay) to c.amount },
+                    notes = notesByHabit[it.id].orEmpty().associate { n -> LocalDate.ofEpochDay(n.epochDay) to n.body },
                 )
             }
         }
@@ -52,6 +56,7 @@ class HabitRepository(private val db: HabitudeDatabase) {
     suspend fun replaceAll(items: List<HabitWithEntries>) {
         db.withTransaction {
             dao.deleteAllCounts()
+            dao.deleteAllNotes()
             dao.deleteAllEntries()
             dao.deleteAllPastSchedules()
             dao.deleteAllHabits()
@@ -62,6 +67,9 @@ class HabitRepository(private val db: HabitudeDatabase) {
             dao.insertPastSchedules(items.flatMap { it.habit.pastScheduleEntities() })
             dao.insertCounts(
                 items.flatMap { item -> item.counts.map { (day, n) -> DayCountEntity(item.habit.id, day.toEpochDay(), n) } },
+            )
+            dao.insertNotes(
+                items.flatMap { item -> item.notes.map { (day, text) -> NoteEntity(item.habit.id, day.toEpochDay(), text) } },
             )
         }
     }
@@ -94,6 +102,12 @@ class HabitRepository(private val db: HabitudeDatabase) {
             val count = dao.getCount(habitId, day.toEpochDay()) ?: return@withTransaction
             writeCount(habitId, day.toEpochDay(), count, target)
         }
+    }
+
+    /** Writes the note for [day], or removes it when [text] is blank. */
+    suspend fun setNote(habitId: Long, day: LocalDate, text: String) {
+        val note = Notes.clean(text)
+        if (note.isEmpty()) dao.deleteNote(habitId, day.toEpochDay()) else dao.upsertNote(NoteEntity(habitId, day.toEpochDay(), note))
     }
 
     private suspend fun writeCount(habitId: Long, epochDay: Long, count: Int, target: Int) {

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -40,6 +41,7 @@ fun LockScreen(
     initialFailures: Int,
     initialLockedUntil: Long,
     onAttempt: (failures: Int, lockedUntil: Long) -> Unit,
+    onUseBiometrics: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -48,6 +50,15 @@ fun LockScreen(
     var secondsLeft by rememberSaveable { mutableIntStateOf(0) }
     var checking by rememberSaveable { mutableStateOf(false) }
     var resetKey by rememberSaveable { mutableIntStateOf(0) }
+
+    // With fingerprint or face unlock on, ask for it straight away, once each time the lock shows.
+    var prompted by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (onUseBiometrics != null && !prompted) {
+            prompted = true
+            onUseBiometrics()
+        }
+    }
 
     // Back leaves the app rather than reaching the screens underneath.
     BackHandler { (context as? Activity)?.moveTaskToBack(true) }
@@ -82,32 +93,37 @@ fun LockScreen(
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            PinPad(
-                title = "Enter your PIN",
-                message = message,
-                isError = resetKey > 0 || secondsLeft > 0,
-                enabled = secondsLeft == 0 && !checking,
-                resetKey = resetKey,
-                onComplete = { pin ->
-                    checking = true
-                    scope.launch {
-                        val ok = checkPin(pin)
-                        checking = false
-                        if (ok) {
-                            failures = 0
-                            waitUntil = 0L
-                            onAttempt(0, 0L)
-                            onUnlocked()
-                        } else {
-                            failures++
-                            resetKey++
-                            val wait = Pin.lockoutSeconds(failures)
-                            if (wait > 0) waitUntil = System.currentTimeMillis() + wait * 1000L
-                            onAttempt(failures, waitUntil)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                PinPad(
+                    title = "Enter your PIN",
+                    message = message,
+                    isError = resetKey > 0 || secondsLeft > 0,
+                    enabled = secondsLeft == 0 && !checking,
+                    resetKey = resetKey,
+                    onComplete = { pin ->
+                        checking = true
+                        scope.launch {
+                            val ok = checkPin(pin)
+                            checking = false
+                            if (ok) {
+                                failures = 0
+                                waitUntil = 0L
+                                onAttempt(0, 0L)
+                                onUnlocked()
+                            } else {
+                                failures++
+                                resetKey++
+                                val wait = Pin.lockoutSeconds(failures)
+                                if (wait > 0) waitUntil = System.currentTimeMillis() + wait * 1000L
+                                onAttempt(failures, waitUntil)
+                            }
                         }
-                    }
-                },
-            )
+                    },
+                )
+                if (onUseBiometrics != null) {
+                    TextButton(onClick = onUseBiometrics) { Text("Use fingerprint or face") }
+                }
+            }
             Text(
                 "Forgot your PIN? The only way back in is to clear Habitude's storage in Android settings, " +
                     "which also erases your habits.",

@@ -88,3 +88,23 @@ data class DayCountEntity(
     val epochDay: Long,
     val amount: Int,
 )
+
+/** A short note on one day of a habit, such as what led to a slip. */
+@Entity(
+    tableName = "notes",
+    primaryKeys = ["habitId", "epochDay"],
+    foreignKeys = [
+        ForeignKey(
+            entity = HabitEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["habitId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("habitId")],
+)
+data class NoteEntity(
+    val habitId: Long,
+    val epochDay: Long,
+    val body: String,
+)
