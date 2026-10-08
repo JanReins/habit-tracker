@@ -25,7 +25,15 @@ data class Habit(
     val pastSchedules: List<PastSchedule> = emptyList(),
     /** Archived habits keep their history but leave Today and send no reminders. */
     val archived: Boolean = false,
+    /**
+     * For a build habit done "X times a week" on any days: X (1 to 6). Null means it's due on
+     * the days in [schedule] instead.
+     */
+    val weeklyTarget: Int? = null,
 ) {
+    /** A build habit with a times-a-week goal rather than set days. */
+    val isWeekly: Boolean get() = type == HabitType.BUILD && weeklyTarget != null
+
     /** Whether the habit was due on [day], using the schedule that applied then. */
     fun isDue(day: LocalDate): Boolean {
         val days = pastSchedules.firstOrNull { !day.isAfter(it.until) }?.days ?: schedule

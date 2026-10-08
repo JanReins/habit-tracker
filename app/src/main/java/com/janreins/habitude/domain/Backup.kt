@@ -38,6 +38,8 @@ data class BackupHabit(
     /** Earlier schedules, oldest first. Missing in backups from before schedule history. */
     val pastSchedules: List<BackupPastSchedule> = emptyList(),
     val archived: Boolean = false,
+    /** Times a week, for a habit with a weekly goal instead of set days. */
+    val weeklyTarget: Int? = null,
 )
 
 @Serializable
@@ -86,6 +88,7 @@ object Backup {
                             BackupPastSchedule(past.until.toString(), past.days.map { it.value }.sorted())
                         },
                         archived = habit.archived,
+                        weeklyTarget = habit.weeklyTarget,
                     )
                 },
             ),
@@ -130,6 +133,7 @@ object Backup {
                             .distinctBy { it.until }
                             .sortedBy { it.until },
                         archived = h.archived,
+                        weeklyTarget = h.weeklyTarget?.takeIf { type == HabitType.BUILD && it in 1..6 },
                     ),
                     entries = h.entries.map { LocalDate.parse(it) }.toSet(),
                 )

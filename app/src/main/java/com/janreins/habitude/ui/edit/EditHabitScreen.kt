@@ -48,6 +48,9 @@ import android.app.TimePickerDialog
 import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Remove
 import java.time.LocalDate
 import android.text.format.DateFormat
 import androidx.compose.material.icons.outlined.Notifications
@@ -161,6 +164,23 @@ fun EditHabitScreen(
         }
 
         if (isBuild) {
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                SegmentedButton(
+                    selected = state.weeklyTarget == null,
+                    onClick = { viewModel.setWeeklyTarget(null) },
+                    shape = SegmentedButtonDefaults.itemShape(0, 2),
+                ) { Text("Set days") }
+                SegmentedButton(
+                    selected = state.weeklyTarget != null,
+                    onClick = { if (state.weeklyTarget == null) viewModel.setWeeklyTarget(3) },
+                    shape = SegmentedButtonDefaults.itemShape(1, 2),
+                ) { Text("Times a week") }
+            }
+        }
+
+        if (isBuild && state.weeklyTarget != null) {
+            WeeklyTargetRow(times = state.weeklyTarget, onChange = viewModel::setWeeklyTarget)
+        } else if (isBuild) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 FieldLabel("On these days")
                 Row(
@@ -316,6 +336,35 @@ private fun ReminderRow(minutes: Int?, onChange: (Int?) -> Unit) {
                 )
             }
         }
+    }
+}
+
+/** A "times a week" goal: any days count, and the streak is in weeks that met it. */
+@Composable
+private fun WeeklyTargetRow(times: Int, onChange: (Int) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FieldLabel("How often")
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            FilledTonalIconButton(onClick = { onChange(times - 1) }, enabled = times > 1) {
+                Icon(Icons.Rounded.Remove, contentDescription = "Fewer times")
+            }
+            Text("$times", style = MaterialTheme.typography.headlineSmall)
+            FilledTonalIconButton(onClick = { onChange(times + 1) }, enabled = times < 6) {
+                Icon(Icons.Rounded.Add, contentDescription = "More times")
+            }
+            Text(
+                if (times == 1) "time a week, any day" else "times a week, any days",
+                style = MaterialTheme.typography.bodyLarge,
+            )
+        }
+        Text(
+            "Your streak counts the weeks in a row you reach this.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

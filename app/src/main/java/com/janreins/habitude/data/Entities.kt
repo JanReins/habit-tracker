@@ -20,6 +20,8 @@ data class HabitEntity(
     /** Minutes after midnight for the daily reminder; null means no reminder. */
     val reminderMinutes: Int? = null,
     @ColumnInfo(defaultValue = "0") val archived: Boolean = false,
+    /** Times a week for a habit with a weekly goal; null when it has set days. */
+    val weeklyTarget: Int? = null,
 )
 
 /** One row per habit per day: "done" for build habits, "slipped" for break habits. */

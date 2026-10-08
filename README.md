@@ -7,6 +7,8 @@ A small, good-looking Android app for building the habits you want and quitting 
 - Kotlin + Jetpack Compose app with a soft sage-and-clay Material 3 theme (light and dark)
 - Three tabs: **Today**, **Progress** and **Settings**
 - **Build** habits: tick them off on their scheduled days to grow a 🔥 streak; rest days don't break it
+- Or give a build habit a **times a week** goal (say, gym 3 times a week on any days); its streak counts the weeks you hit it
+- **Home-screen widget**: today's habits with a tap to tick each one off
 - **Break** habits: count your days clean, and log a slip honestly when it happens. Set a "clean since" date if you quit before you started using the app
 - **Today** shows how many of today's habits are done, with the ones still to do at the top
 - **Archive** a habit you're pausing: it keeps its history, leaves Today and stops its reminders, and can be restored from its edit screen

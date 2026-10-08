@@ -34,6 +34,7 @@ import com.janreins.habitude.domain.HabitType
 import com.janreins.habitude.domain.HabitWithEntries
 import com.janreins.habitude.domain.Stats
 import com.janreins.habitude.domain.Streaks
+import com.janreins.habitude.domain.TodayList
 import com.janreins.habitude.ui.HabitsViewModel
 import com.janreins.habitude.ui.charts.CalendarHeatmap
 import com.janreins.habitude.ui.charts.ChartCard
@@ -97,16 +98,11 @@ private fun ProgressContent(
     }
 
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        val dueToday = builds.count { it.habit.isDue(today) || today in it.entries }
-        val doneToday = builds.count { today in it.entries }
+        val progress = TodayList.progress(builds, today)
         val week = overall.filterKeys { !it.isBefore(today.minusDays(6)) }.values.filterNotNull()
-        val bestGoing = items.maxOfOrNull { item ->
-            when (item.habit.type) {
-                HabitType.BUILD -> Streaks.currentBuildStreak(item.entries, item.habit::isDue, today)
-                HabitType.BREAK -> Streaks.daysClean(item.entries, item.habit.createdOn, today)
-            }
-        } ?: 0
-        StatTile("$doneToday/$dueToday", "Done today", Modifier.weight(1f))
+        // In days, so weekly goals (counted in weeks) are left out.
+        val bestGoing = items.filter { !it.habit.isWeekly }.maxOfOrNull { Streaks.current(it, today) } ?: 0
+        StatTile("${progress.done}/${progress.due}", "Done today", Modifier.weight(1f))
         StatTile(percent(week.takeIf { it.isNotEmpty() }?.average()?.toFloat()), "Last 7 days", Modifier.weight(1f))
         StatTile("$bestGoing", "Longest going", Modifier.weight(1f))
     }

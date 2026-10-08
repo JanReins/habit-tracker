@@ -29,9 +29,12 @@ data class HabitCardState(
     /** Done today for a build habit, slipped today for a break habit. */
     val loggedToday: Boolean,
     val scheduledToday: Boolean,
-    /** Current streak for a build habit, days clean for a break habit. */
+    /** Current streak for a build habit (weeks for a weekly goal), days clean for a break habit. */
     val current: Int,
     val best: Int,
+    /** For a times-a-week habit: the goal, and how many days are done this week. */
+    val weeklyTarget: Int? = null,
+    val doneThisWeek: Int = 0,
 )
 
 data class TodayUiState(
@@ -78,23 +81,16 @@ class TodayViewModel(
     }
 }
 
-internal fun HabitWithEntries.toCard(today: LocalDate): HabitCardState {
-    val (current, best) = when (habit.type) {
-        HabitType.BUILD ->
-            Streaks.currentBuildStreak(entries, habit::isDue, today) to
-                Streaks.bestBuildStreak(entries, habit::isDue, today)
-        HabitType.BREAK ->
-            Streaks.daysClean(entries, habit.createdOn, today) to
-                Streaks.bestCleanRun(entries, habit.createdOn, today)
-    }
-    return HabitCardState(
+internal fun HabitWithEntries.toCard(today: LocalDate): HabitCardState =
+    HabitCardState(
         id = habit.id,
         name = habit.name,
         emoji = habit.emoji,
         type = habit.type,
         loggedToday = today in entries,
-        scheduledToday = habit.isDue(today),
-        current = current,
-        best = best,
+        scheduledToday = TodayList.isDueToday(this, today),
+        current = Streaks.current(this, today),
+        best = Streaks.best(this, today),
+        weeklyTarget = habit.weeklyTarget.takeIf { habit.isWeekly },
+        doneThisWeek = Streaks.doneInWeek(entries, today, today),
     )
-}

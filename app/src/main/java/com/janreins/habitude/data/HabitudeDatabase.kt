@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [HabitEntity::class, EntryEntity::class, PastScheduleEntity::class], version = 4, exportSchema = false)
+@Database(entities = [HabitEntity::class, EntryEntity::class, PastScheduleEntity::class], version = 5, exportSchema = false)
 abstract class HabitudeDatabase : RoomDatabase() {
     abstract fun habitDao(): HabitDao
 
@@ -39,9 +39,16 @@ abstract class HabitudeDatabase : RoomDatabase() {
             }
         }
 
+        /** Version 5 adds "times a week" goals. */
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE habits ADD COLUMN weeklyTarget INTEGER")
+            }
+        }
+
         fun create(context: Context): HabitudeDatabase =
             Room.databaseBuilder(context, HabitudeDatabase::class.java, "habitude.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .build()
     }
 }

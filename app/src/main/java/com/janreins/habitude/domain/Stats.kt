@@ -47,7 +47,8 @@ object Stats {
             HabitType.BREAK -> if (logged) DayMark.SLIP else DayMark.CLEAN
             HabitType.BUILD -> when {
                 logged -> DayMark.DONE
-                !habit.isDue(day) -> DayMark.REST
+                // Any day can count towards a times-a-week goal, so no single day is "missed".
+                habit.isWeekly || !habit.isDue(day) -> DayMark.REST
                 day == today -> DayMark.PENDING
                 else -> DayMark.MISSED
             }
@@ -59,6 +60,7 @@ object Stats {
      * or share of clean days for a break habit. Null when there's nothing to measure yet.
      */
     fun completionRate(item: HabitWithEntries, from: LocalDate, to: LocalDate, today: LocalDate): Float? {
+        if (item.habit.isWeekly) return weeklyRate(item, from, to, today)
         var hits = 0
         var total = 0
         var day = from
@@ -76,15 +78,43 @@ object Stats {
         return if (total == 0) null else hits.toFloat() / total
     }
 
+    /**
+     * For a times-a-week habit: the share of the goal met across the weeks touching [from]..[to],
+     * counting each week's done days up to the goal. This week only counts once it's met.
+     */
+    private fun weeklyRate(item: HabitWithEntries, from: LocalDate, to: LocalDate, today: LocalDate): Float? {
+        val target = item.habit.weeklyTarget ?: return null
+        val firstWeek = weekStart(item.habit.createdOn)
+        var hits = 0
+        var total = 0
+        var week = weekStart(from)
+        while (!week.isAfter(to) && !week.isAfter(today)) {
+            if (!week.isBefore(firstWeek)) {
+                val done = Streaks.doneInWeek(item.entries, week, today).coerceAtMost(target)
+                val finished = week.plusDays(6).isBefore(today)
+                if (finished || done >= target) {
+                    hits += done
+                    total += target
+                }
+            }
+            week = week.plusWeeks(1)
+        }
+        return if (total == 0) null else hits.toFloat() / total
+    }
+
     /** The last [weeks] weeks, oldest first, ending with the week containing [today]. */
     fun weekly(item: HabitWithEntries, today: LocalDate, weeks: Int): List<WeekStat> {
         val lastWeek = weekStart(today)
         return (weeks - 1 downTo 0).map { back ->
             val start = lastWeek.minusWeeks(back.toLong())
             val end = start.plusDays(6)
-            val value = when (item.habit.type) {
-                HabitType.BUILD -> completionRate(item, start, end, today)
-                HabitType.BREAK ->
+            val target = item.habit.weeklyTarget
+            val value = when {
+                item.habit.isWeekly && target != null ->
+                    if (end.isBefore(item.habit.createdOn) || start.isAfter(today)) null
+                    else Streaks.doneInWeek(item.entries, start, today).coerceAtMost(target).toFloat() / target
+                item.habit.type == HabitType.BUILD -> completionRate(item, start, end, today)
+                else ->
                     if (end.isBefore(item.habit.createdOn) || start.isAfter(today)) null
                     else item.entries.count { !it.isBefore(start) && !it.isAfter(end) }.toFloat()
             }
@@ -99,7 +129,7 @@ object Stats {
     fun runs(item: HabitWithEntries, today: LocalDate): List<Run> {
         val habit = item.habit
         return when (habit.type) {
-            HabitType.BUILD -> buildRuns(item, today)
+            HabitType.BUILD -> if (habit.isWeekly) weeklyRuns(item, today) else buildRuns(item, today)
             HabitType.BREAK -> {
                 val slips = item.entries.filter { !it.isAfter(today) && !it.isBefore(habit.createdOn) }.sorted()
                 val result = mutableListOf<Run>()
@@ -114,6 +144,28 @@ object Stats {
                 result
             }
         }
+    }
+
+    /** Runs of weeks that met a times-a-week goal. Lengths are in weeks. */
+    private fun weeklyRuns(item: HabitWithEntries, today: LocalDate): List<Run> {
+        val target = item.habit.weeklyTarget ?: return emptyList()
+        val thisWeek = weekStart(today)
+        val result = mutableListOf<Run>()
+        var week = weekStart(minOf(item.habit.createdOn, item.entries.minOrNull() ?: item.habit.createdOn))
+        var length = 0
+        var lastEnd = today
+        while (!week.isAfter(thisWeek)) {
+            if (Streaks.doneInWeek(item.entries, week, today) >= target) {
+                length++
+                lastEnd = if (week == thisWeek) today else week.plusDays(6)
+            } else if (week != thisWeek) {
+                if (length > 0) result += Run(lastEnd, length, ongoing = false)
+                length = 0
+            }
+            week = week.plusWeeks(1)
+        }
+        if (length > 0) result += Run(lastEnd, length, ongoing = true)
+        return result
     }
 
     private fun buildRuns(item: HabitWithEntries, today: LocalDate): List<Run> {

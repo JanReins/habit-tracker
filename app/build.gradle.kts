@@ -14,8 +14,8 @@ android {
         applicationId = "com.janreins.habitude"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.6.0"
+        versionCode = 8
+        versionName = "0.7.0"
     }
 
     signingConfigs {
@@ -64,6 +64,8 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.androidx.glance.appwidget)
+    implementation(libs.androidx.glance.material3)
     debugImplementation(libs.androidx.ui.tooling)
 
     testImplementation(libs.junit)

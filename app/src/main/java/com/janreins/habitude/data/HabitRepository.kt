@@ -64,6 +64,7 @@ private fun HabitEntity.toDomain(past: List<PastScheduleEntity>) = Habit(
     createdOn = LocalDate.ofEpochDay(createdOnEpochDay),
     reminderMinutes = reminderMinutes,
     archived = archived,
+    weeklyTarget = weeklyTarget,
     pastSchedules = past.sortedBy { it.untilEpochDay }.map {
         PastSchedule(LocalDate.ofEpochDay(it.untilEpochDay), Schedule.fromMask(it.scheduleMask))
     },
@@ -82,4 +83,5 @@ private fun Habit.toEntity() = HabitEntity(
     createdOnEpochDay = createdOn.toEpochDay(),
     reminderMinutes = reminderMinutes,
     archived = archived,
+    weeklyTarget = weeklyTarget,
 )
