@@ -17,6 +17,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.janreins.habitude.domain.Days
+import com.janreins.habitude.ui.CelebrationHost
 import com.janreins.habitude.ui.DayClock
 import com.janreins.habitude.ui.lock.LockScreen
 import com.janreins.habitude.ui.navigation.HabitudeApp
@@ -60,6 +61,8 @@ class MainActivity : ComponentActivity() {
                 Box {
                     // The app stays composed underneath so you land back where you were.
                     HabitudeApp()
+                    // Milestones wait until the app is unlocked, so they never show over the PIN screen.
+                    if (lock.locked == false) CelebrationHost()
                     if (lock.locked == true) {
                         LockScreen(
                             checkPin = { pin -> withContext(Dispatchers.Default) { settings.checkPin(pin) } },

@@ -12,6 +12,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.janreins.habitude.HabitudeApplication
 import com.janreins.habitude.data.HabitRepository
+import com.janreins.habitude.domain.Counts
 import com.janreins.habitude.domain.Habit
 import com.janreins.habitude.domain.HabitType
 import com.janreins.habitude.notify.ReminderScheduler
@@ -37,6 +38,8 @@ data class EditHabitState(
     val archived: Boolean = false,
     /** Times a week (any days) instead of set days, for a build habit. */
     val weeklyTarget: Int? = null,
+    /** How many make a day done, for a build habit counted through the day. Null for a single tick. */
+    val dailyTarget: Int? = null,
 ) {
     val canSave: Boolean
         get() = name.isNotBlank() && (type == HabitType.BREAK || weeklyTarget != null || schedule.isNotEmpty())
@@ -80,6 +83,7 @@ class EditHabitViewModel(
                         reminderMinutes = habit.reminderMinutes,
                         archived = habit.archived,
                         weeklyTarget = habit.weeklyTarget,
+                        dailyTarget = habit.dailyTarget,
                     )
                     initial = state
                 }
@@ -98,6 +102,11 @@ class EditHabitViewModel(
 
     /** A times-a-week goal (1 to 6), or null to go back to set days. */
     fun setWeeklyTarget(times: Int?) { state = state.copy(weeklyTarget = times?.coerceIn(1, 6)) }
+
+    /** How many a day makes it done. 1 means a single tick. */
+    fun setDailyTarget(times: Int) {
+        state = state.copy(dailyTarget = times.coerceIn(1, Counts.MAX_TARGET).takeIf { it > 1 })
+    }
 
     fun toggleDay(day: DayOfWeek) {
         val days = state.schedule
@@ -119,10 +128,13 @@ class EditHabitViewModel(
                 reminderMinutes = s.reminderMinutes,
                 archived = archived,
                 weeklyTarget = s.weeklyTarget.takeIf { s.type == HabitType.BUILD },
+                dailyTarget = s.dailyTarget.takeIf { s.type == HabitType.BUILD },
                 // A break habit's start is its "clean since" date, which can be moved.
                 createdOn = if (s.type == HabitType.BREAK) s.createdOn else base.createdOn,
             )
             val id = repository.save(habit)
+            // A new goal decides whether today's count so far makes it done.
+            if (habit.dailyTarget != null) repository.recheckCount(id, DayClock.today())
             reminders.schedule(habit.copy(id = id))
             onSaved()
         }

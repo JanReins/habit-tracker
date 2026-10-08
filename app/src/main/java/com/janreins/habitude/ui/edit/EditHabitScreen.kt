@@ -42,6 +42,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.janreins.habitude.domain.Counts
 import com.janreins.habitude.domain.HabitType
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
@@ -208,6 +209,10 @@ fun EditHabitScreen(
                     }
                 }
             }
+        }
+
+        if (isBuild) {
+            DailyTargetRow(times = state.dailyTarget ?: 1, onChange = viewModel::setDailyTarget)
         } else {
             Text(
                 "Every day you don't slip adds to your clean run. If you do slip, log it honestly and the count starts again.",
@@ -365,6 +370,37 @@ private fun WeeklyTargetRow(times: Int, onChange: (Int) -> Unit) {
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+/** How many a day makes it done: 1 is a plain tick, more is counted up through the day. */
+@Composable
+private fun DailyTargetRow(times: Int, onChange: (Int) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FieldLabel("Each day")
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            FilledTonalIconButton(onClick = { onChange(times - 1) }, enabled = times > 1) {
+                Icon(Icons.Rounded.Remove, contentDescription = "Fewer each day")
+            }
+            Text("$times", style = MaterialTheme.typography.headlineSmall)
+            FilledTonalIconButton(onClick = { onChange(times + 1) }, enabled = times < Counts.MAX_TARGET) {
+                Icon(Icons.Rounded.Add, contentDescription = "More each day")
+            }
+            Text(
+                if (times == 1) "time, one tick" else "times, counted up",
+                style = MaterialTheme.typography.bodyLarge,
+            )
+        }
+        if (times > 1) {
+            Text(
+                "Tap the ring on Today once each time, like each glass of water. The day counts as done at $times.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

@@ -1,6 +1,7 @@
 package com.janreins.habitude.ui.today
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -13,9 +14,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -26,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
@@ -46,6 +51,7 @@ fun HabitCard(
     onSlip: () -> Unit,
     onUndoSlip: () -> Unit,
     modifier: Modifier = Modifier,
+    onAddCount: (Int) -> Unit = {},
 ) {
     val isBuild = state.type == HabitType.BUILD
     val accent = if (isBuild) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer
@@ -82,7 +88,19 @@ fun HabitCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            if (isBuild) {
+            val target = state.dailyTarget
+            if (isBuild && target != null) {
+                if (state.countToday > 0) {
+                    IconButton(onClick = { onAddCount(-1) }, modifier = Modifier.size(36.dp)) {
+                        Icon(
+                            Icons.Rounded.Remove,
+                            contentDescription = "Take one off ${state.name}",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                CountButton(name = state.name, count = state.countToday, target = target, onClick = { onAddCount(1) })
+            } else if (isBuild) {
                 CheckButton(name = state.name, done = state.loggedToday, onClick = onToggleDone)
             } else if (state.loggedToday) {
                 TextButton(onClick = onUndoSlip) { Text("Undo") }
@@ -132,6 +150,51 @@ private fun CheckButton(name: String, done: Boolean, onClick: () -> Unit) {
     }
 }
 
+/** A ring that fills as a counted habit is counted up. Tap it to add one. */
+@Composable
+private fun CountButton(name: String, count: Int, target: Int, onClick: () -> Unit) {
+    val haptics = LocalHapticFeedback.current
+    val done = count >= target
+    val container by animateColorAsState(
+        if (done) MaterialTheme.colorScheme.primary else Color.Transparent,
+        label = "countContainer",
+    )
+    val progress by animateFloatAsState((count.toFloat() / target).coerceAtMost(1f), label = "countProgress")
+    Surface(
+        onClick = {
+            if (count + 1 == target) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            onClick()
+        },
+        shape = CircleShape,
+        color = container,
+        modifier = Modifier
+            .size(44.dp)
+            .semantics {
+                role = Role.Button
+                contentDescription = "$name, add one"
+                stateDescription = "$count of $target today"
+            },
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            if (!done) {
+                CircularProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.size(44.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.outlineVariant,
+                    strokeWidth = 3.dp,
+                    strokeCap = StrokeCap.Round,
+                )
+            }
+            Text(
+                "$count",
+                style = MaterialTheme.typography.labelLarge,
+                color = if (done) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+            )
+        }
+    }
+}
+
 private fun days(n: Int) = if (n == 1) "1 day" else "$n days"
 
 private fun weeks(n: Int) = if (n == 1) "1 week" else "$n weeks"
@@ -141,6 +204,10 @@ private fun subtitle(state: HabitCardState): String {
     state.weeklyTarget?.let { target ->
         val streak = if (state.current > 0) " · 🔥 ${weeks(state.current)}" else ""
         return "${state.doneThisWeek} of $target this week$streak"
+    }
+    state.dailyTarget?.let { target ->
+        val streak = if (state.current > 0) " · 🔥 ${days(state.current)}" else ""
+        return if (!state.scheduledToday && state.countToday == 0) "Rest day$streak" else "${state.countToday} of $target today$streak"
     }
     return when (state.type) {
         HabitType.BUILD -> when {

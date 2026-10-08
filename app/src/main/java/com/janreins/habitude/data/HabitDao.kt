@@ -60,4 +60,25 @@ interface HabitDao {
 
     @Delete
     suspend fun deleteEntry(entry: EntryEntity)
+
+    @Query("SELECT EXISTS(SELECT 1 FROM entries WHERE habitId = :habitId AND epochDay = :epochDay)")
+    suspend fun hasEntry(habitId: Long, epochDay: Long): Boolean
+
+    @Query("SELECT * FROM day_counts")
+    fun observeCounts(): Flow<List<DayCountEntity>>
+
+    @Query("SELECT amount FROM day_counts WHERE habitId = :habitId AND epochDay = :epochDay")
+    suspend fun getCount(habitId: Long, epochDay: Long): Int?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertCount(entity: DayCountEntity)
+
+    @Query("DELETE FROM day_counts WHERE habitId = :habitId AND epochDay = :epochDay")
+    suspend fun deleteCount(habitId: Long, epochDay: Long)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCounts(counts: List<DayCountEntity>)
+
+    @Query("DELETE FROM day_counts")
+    suspend fun deleteAllCounts()
 }

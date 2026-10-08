@@ -41,6 +41,22 @@ class Settings(context: Context) {
         get() = prefs.getLong(KEY_PIN_LOCKED_UNTIL, 0L)
         set(value) = prefs.edit().putLong(KEY_PIN_LOCKED_UNTIL, value).apply()
 
+    /** The milestone already celebrated in a habit's current run, so each shows only once. */
+    fun celebratedMilestone(habitId: Long): Int = prefs.getInt(KEY_MILESTONE + habitId, 0)
+
+    fun setCelebratedMilestone(habitId: Long, milestone: Int) {
+        if (milestone == celebratedMilestone(habitId)) return
+        prefs.edit().putInt(KEY_MILESTONE + habitId, milestone).apply()
+    }
+
+    /**
+     * False until milestones have been checked once. The first check only takes note of where
+     * each habit is, so runs from before milestones existed don't all celebrate at once.
+     */
+    var milestonesStarted: Boolean
+        get() = prefs.getBoolean(KEY_MILESTONES_STARTED, false)
+        set(value) = prefs.edit().putBoolean(KEY_MILESTONES_STARTED, value).apply()
+
     fun clearPin() {
         prefs.edit()
             .remove(KEY_PIN_SALT)
@@ -56,5 +72,7 @@ class Settings(context: Context) {
         const val KEY_PIN_HASH = "pin_hash"
         const val KEY_PIN_FAILURES = "pin_failures"
         const val KEY_PIN_LOCKED_UNTIL = "pin_locked_until"
+        const val KEY_MILESTONE = "milestone_"
+        const val KEY_MILESTONES_STARTED = "milestones_started"
     }
 }

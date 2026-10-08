@@ -47,7 +47,14 @@ object Notifications {
      * A habit reminder for [day]. Build habits get a "Done" button that ticks them off without
      * opening the app, for that day even if it's tapped after midnight.
      */
-    fun showReminder(context: Context, habitId: Long, day: LocalDate, text: ReminderText, offerDone: Boolean) {
+    fun showReminder(
+        context: Context,
+        habitId: Long,
+        day: LocalDate,
+        text: ReminderText,
+        offerDone: Boolean,
+        doneLabel: String = "Done ✓",
+    ) {
         val builder = base(context, CHANNEL_REMINDERS, text)
         if (offerDone) {
             val done = PendingIntent.getBroadcast(
@@ -58,7 +65,7 @@ object Notifications {
                     .putExtra(EXTRA_EPOCH_DAY, day.toEpochDay()),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
-            builder.addAction(R.drawable.ic_notification, "Done ✓", done)
+            builder.addAction(R.drawable.ic_notification, doneLabel, done)
         }
         post(context, habitId.toInt(), builder)
     }

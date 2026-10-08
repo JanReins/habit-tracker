@@ -7,7 +7,11 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [HabitEntity::class, EntryEntity::class, PastScheduleEntity::class], version = 5, exportSchema = false)
+@Database(
+    entities = [HabitEntity::class, EntryEntity::class, PastScheduleEntity::class, DayCountEntity::class],
+    version = 6,
+    exportSchema = false,
+)
 abstract class HabitudeDatabase : RoomDatabase() {
     abstract fun habitDao(): HabitDao
 
@@ -46,9 +50,23 @@ abstract class HabitudeDatabase : RoomDatabase() {
             }
         }
 
+        /** Version 6 adds habits counted through the day, like glasses of water. */
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE habits ADD COLUMN dailyTarget INTEGER")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `day_counts` (`habitId` INTEGER NOT NULL, " +
+                        "`epochDay` INTEGER NOT NULL, `amount` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`habitId`, `epochDay`), FOREIGN KEY(`habitId`) REFERENCES `habits`(`id`) " +
+                        "ON UPDATE NO ACTION ON DELETE CASCADE )",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_day_counts_habitId` ON `day_counts` (`habitId`)")
+            }
+        }
+
         fun create(context: Context): HabitudeDatabase =
             Room.databaseBuilder(context, HabitudeDatabase::class.java, "habitude.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .build()
     }
 }

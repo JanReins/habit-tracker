@@ -10,9 +10,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -21,6 +24,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -28,6 +33,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.janreins.habitude.domain.DayMark
 import com.janreins.habitude.domain.HabitType
 import com.janreins.habitude.domain.HabitWithEntries
+import com.janreins.habitude.domain.Milestones
 import com.janreins.habitude.domain.Stats
 import com.janreins.habitude.domain.Streaks
 import com.janreins.habitude.ui.HabitsViewModel
@@ -97,12 +103,20 @@ fun HabitDetailScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        HabitStats(item, onSetEntry = { day, present -> viewModel.setEntry(habitId, day, present) })
+        HabitStats(
+            item,
+            onSetEntry = { day, present -> viewModel.setEntry(habitId, day, present) },
+            onAddCount = { day, delta -> viewModel.addCount(habitId, day, delta) },
+        )
     }
 }
 
 @Composable
-private fun HabitStats(item: HabitWithEntries, onSetEntry: (LocalDate, Boolean) -> Unit) {
+private fun HabitStats(
+    item: HabitWithEntries,
+    onSetEntry: (LocalDate, Boolean) -> Unit,
+    onAddCount: (LocalDate, Int) -> Unit,
+) {
     val today = rememberToday()
     val palette = chartPalette()
     val habit = item.habit
@@ -151,13 +165,26 @@ private fun HabitStats(item: HabitWithEntries, onSetEntry: (LocalDate, Boolean) 
             describe = { day ->
                 val mark = Stats.dayMark(item, day, today)
                 // Any day counts towards a weekly goal, so an empty day isn't a "rest day".
-                if (habit.isWeekly && mark == DayMark.REST) "${dayCaption(day, mark).substringBefore(" · ")} · Not done"
+                val caption = if (habit.isWeekly && mark == DayMark.REST) "${dayCaption(day, mark).substringBefore(" · ")} · Not done"
                 else dayCaption(day, mark)
+                val target = habit.dailyTarget
+                if (target != null && mark != DayMark.NONE) "$caption · ${item.countOn(day)} of $target" else caption
             },
             hint = "Tap a day to see or change it",
             action = { day ->
                 // Forgot to log a day? Fix it here. Days before the habit started stay empty.
-                if (!day.isBefore(habit.createdOn)) {
+                val target = habit.dailyTarget
+                if (!day.isBefore(habit.createdOn) && target != null) {
+                    val count = item.countOn(day)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { onAddCount(day, -1) }, enabled = count > 0) {
+                            Icon(Icons.Rounded.Remove, contentDescription = "Take one off")
+                        }
+                        IconButton(onClick = { onAddCount(day, 1) }) {
+                            Icon(Icons.Rounded.Add, contentDescription = "Add one")
+                        }
+                    }
+                } else if (!day.isBefore(habit.createdOn)) {
                     val logged = day in item.entries
                     TextButton(onClick = { onSetEntry(day, !logged) }) {
                         Text(
@@ -227,6 +254,8 @@ private fun HabitStats(item: HabitWithEntries, onSetEntry: (LocalDate, Boolean) 
         }
     }
 
+    MilestonesCard(item, today)
+
     val runs = remember(item, today) { Stats.runs(item, today) }
     ChartCard(
         when {
@@ -243,6 +272,44 @@ private fun HabitStats(item: HabitWithEntries, onSetEntry: (LocalDate, Boolean) 
             )
         } else {
             StreakHistory(runs, color)
+        }
+    }
+}
+
+/** The milestones this habit's best run has reached, and the ones still ahead. */
+@Composable
+private fun MilestonesCard(item: HabitWithEntries, today: LocalDate) {
+    val habit = item.habit
+    val best = remember(item, today) { Streaks.best(item, today) }
+    val steps = Milestones.stepsFor(habit)
+    ChartCard("Milestones") {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            steps.forEach { step ->
+                val reached = best >= step
+                val label = when {
+                    habit.isWeekly -> plural(step, "week")
+                    step == 365 -> "1 year"
+                    else -> plural(step, "day")
+                }
+                Surface(
+                    shape = MaterialTheme.shapes.small,
+                    color = if (reached) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                    contentColor = if (reached) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .weight(1f)
+                        .semantics(mergeDescendants = true) {
+                            stateDescription = if (reached) "Reached" else "Not yet"
+                        },
+                ) {
+                    Column(
+                        Modifier.padding(vertical = 10.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(if (reached) "🏅" else "○", style = MaterialTheme.typography.titleMedium)
+                        Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                    }
+                }
+            }
         }
     }
 }

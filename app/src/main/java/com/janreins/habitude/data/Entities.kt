@@ -22,6 +22,8 @@ data class HabitEntity(
     @ColumnInfo(defaultValue = "0") val archived: Boolean = false,
     /** Times a week for a habit with a weekly goal; null when it has set days. */
     val weeklyTarget: Int? = null,
+    /** How many make a day done for a counted habit; null for a single tick. */
+    val dailyTarget: Int? = null,
 )
 
 /** One row per habit per day: "done" for build habits, "slipped" for break habits. */
@@ -62,4 +64,27 @@ data class PastScheduleEntity(
     val untilEpochDay: Long,
     /** Bit 0 = Monday … bit 6 = Sunday. */
     val scheduleMask: Int,
+)
+
+/**
+ * A counted habit's running count for one day. The day's [EntryEntity] is kept in step,
+ * present once the count reaches the goal, so streaks and charts read only entries.
+ */
+@Entity(
+    tableName = "day_counts",
+    primaryKeys = ["habitId", "epochDay"],
+    foreignKeys = [
+        ForeignKey(
+            entity = HabitEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["habitId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("habitId")],
+)
+data class DayCountEntity(
+    val habitId: Long,
+    val epochDay: Long,
+    val amount: Int,
 )

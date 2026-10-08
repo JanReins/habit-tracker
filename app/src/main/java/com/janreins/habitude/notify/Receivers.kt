@@ -36,7 +36,14 @@ class ReminderReceiver : BroadcastReceiver() {
                     val id = intent.getLongExtra(EXTRA_HABIT_ID, 0L)
                     val item = items.firstOrNull { it.habit.id == id } ?: return@work
                     Reminders.reminderFor(item, today)?.let { text ->
-                        Notifications.showReminder(context, id, today, text, offerDone = item.habit.type == HabitType.BUILD)
+                        Notifications.showReminder(
+                            context,
+                            id,
+                            today,
+                            text,
+                            offerDone = item.habit.type == HabitType.BUILD,
+                            doneLabel = if (item.habit.isCount) "+1" else "Done ✓",
+                        )
                     }
                     app.reminders.schedule(item.habit)
                 }
@@ -55,7 +62,7 @@ class ReminderReceiver : BroadcastReceiver() {
     }
 }
 
-/** The "Done" button on a reminder: ticks the habit off for today. */
+/** The "Done" button on a reminder: ticks the habit off for today, or adds one to a counted habit. */
 class DoneReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val app = context.applicationContext as HabitudeApplication
@@ -67,7 +74,12 @@ class DoneReceiver : BroadcastReceiver() {
             ?.let(LocalDate::ofEpochDay)
             ?: LocalDate.now()
         work {
-            app.repository.setEntry(id, day, present = true)
+            val habit = app.repository.getHabit(id)
+            if (habit?.isCount == true) {
+                app.repository.addCount(id, day, 1)
+            } else {
+                app.repository.setEntry(id, day, present = true)
+            }
             Notifications.cancel(context, id.toInt())
         }
     }
