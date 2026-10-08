@@ -16,6 +16,8 @@ data class HabitEntity(
     val scheduleMask: Int,
     /** [java.time.LocalDate.toEpochDay]. */
     val createdOnEpochDay: Long,
+    /** Minutes after midnight for the daily reminder; null means no reminder. */
+    val reminderMinutes: Int? = null,
 )
 
 /** One row per habit per day: "done" for build habits, "slipped" for break habits. */

@@ -43,7 +43,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.janreins.habitude.domain.HabitType
+import android.app.TimePickerDialog
+import android.text.format.DateFormat
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.NotificationsOff
+import androidx.compose.material3.Switch
+import androidx.compose.ui.platform.LocalContext
+import com.janreins.habitude.ui.rememberNotificationPermissionRequest
 import java.time.DayOfWeek
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import java.time.format.TextStyle
 import java.util.Locale
 
@@ -170,6 +180,8 @@ fun EditHabitScreen(
             )
         }
 
+        ReminderRow(minutes = state.reminderMinutes, onChange = viewModel::setReminder)
+
         Spacer(Modifier.height(8.dp))
         Button(
             onClick = { viewModel.save(onDone) },
@@ -208,6 +220,59 @@ fun EditHabitScreen(
         )
     }
 }
+
+@Composable
+private fun ReminderRow(minutes: Int?, onChange: (Int?) -> Unit) {
+    val context = LocalContext.current
+    val askPermission = rememberNotificationPermissionRequest()
+    val pickTime = { initial: Int ->
+        TimePickerDialog(
+            context,
+            { _, hour, minute ->
+                onChange(hour * 60 + minute)
+                askPermission()
+            },
+            initial / 60,
+            initial % 60,
+            DateFormat.is24HourFormat(context),
+        ).show()
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FieldLabel("Reminder")
+        Surface(
+            onClick = { pickTime(minutes ?: DEFAULT_REMINDER) },
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.surfaceVariant,
+        ) {
+            Row(
+                modifier = Modifier.padding(start = 16.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Icon(
+                    if (minutes == null) Icons.Outlined.NotificationsOff else Icons.Outlined.Notifications,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    if (minutes == null) "No reminder" else "Remind me at ${formatMinutes(minutes)}",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(
+                    checked = minutes != null,
+                    onCheckedChange = { on -> if (on) pickTime(DEFAULT_REMINDER) else onChange(null) },
+                )
+            }
+        }
+    }
+}
+
+private const val DEFAULT_REMINDER = 9 * 60
+
+private fun formatMinutes(minutes: Int): String =
+    LocalTime.of(minutes / 60, minutes % 60).format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
 
 @Composable
 private fun FieldLabel(text: String) {

@@ -6,6 +6,7 @@ import com.janreins.habitude.domain.HabitWithEntries
 import com.janreins.habitude.domain.Schedule
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import java.time.LocalDate
 
 class HabitRepository(private val dao: HabitDao) {
@@ -17,6 +18,9 @@ class HabitRepository(private val dao: HabitDao) {
         }
 
     suspend fun getHabit(id: Long): Habit? = dao.getHabit(id)?.toDomain()
+
+    /** Everything as it stands right now, for background work such as reminders. */
+    suspend fun snapshot(): List<HabitWithEntries> = habits.first()
 
     suspend fun save(habit: Habit): Long =
         if (habit.id == 0L) dao.insertHabit(habit.toEntity())
@@ -37,6 +41,7 @@ private fun HabitEntity.toDomain() = Habit(
     type = HabitType.valueOf(type),
     schedule = Schedule.fromMask(scheduleMask),
     createdOn = LocalDate.ofEpochDay(createdOnEpochDay),
+    reminderMinutes = reminderMinutes,
 )
 
 private fun Habit.toEntity() = HabitEntity(
@@ -46,4 +51,5 @@ private fun Habit.toEntity() = HabitEntity(
     type = type.name,
     scheduleMask = Schedule.toMask(schedule),
     createdOnEpochDay = createdOn.toEpochDay(),
+    reminderMinutes = reminderMinutes,
 )

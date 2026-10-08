@@ -18,6 +18,8 @@ data class Habit(
     val type: HabitType,
     val schedule: Set<DayOfWeek> = DayOfWeek.entries.toSet(),
     val createdOn: LocalDate,
+    /** Daily reminder time in minutes after midnight, or null for no reminder. */
+    val reminderMinutes: Int? = null,
 )
 
 /**
