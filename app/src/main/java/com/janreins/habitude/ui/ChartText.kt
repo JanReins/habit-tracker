@@ -1,0 +1,28 @@
+package com.janreins.habitude.ui
+
+import com.janreins.habitude.domain.DayMark
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import kotlin.math.roundToInt
+
+private val dayFormat = DateTimeFormatter.ofPattern("EEE d MMM")
+private val shortFormat = DateTimeFormatter.ofPattern("d MMM")
+
+fun plural(n: Int, word: String) = if (n == 1) "1 $word" else "$n ${word}s"
+
+fun percent(share: Float?) = share?.let { "${(it * 100).roundToInt()}%" } ?: "–"
+
+fun dayCaption(day: LocalDate, mark: DayMark): String {
+    val what = when (mark) {
+        DayMark.DONE -> "Done"
+        DayMark.MISSED -> "Missed"
+        DayMark.REST -> "Rest day"
+        DayMark.PENDING -> "Not done yet"
+        DayMark.CLEAN -> "Clean"
+        DayMark.SLIP -> "Slipped"
+        DayMark.NONE -> "Before you started"
+    }
+    return "${day.format(dayFormat)} · $what"
+}
+
+fun weekLabel(weekStart: LocalDate) = "Week of ${weekStart.format(shortFormat)}"

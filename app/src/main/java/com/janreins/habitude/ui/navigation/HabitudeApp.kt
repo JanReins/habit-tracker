@@ -25,6 +25,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import com.janreins.habitude.domain.HabitType
+import com.janreins.habitude.ui.detail.HabitDetailScreen
 import com.janreins.habitude.ui.edit.EditHabitScreen
 import com.janreins.habitude.ui.edit.EditHabitViewModel
 import com.janreins.habitude.ui.screens.ProgressScreen
@@ -42,6 +43,10 @@ private val EDIT_ROUTE =
 
 private fun editRoute(id: Long = 0, type: HabitType = HabitType.BUILD) =
     "habit?${EditHabitViewModel.ARG_ID}=$id&${EditHabitViewModel.ARG_TYPE}=${type.name}"
+
+private const val DETAIL_ROUTE = "detail/{id}"
+
+private fun detailRoute(id: Long) = "detail/$id"
 
 @Composable
 fun HabitudeApp() {
@@ -83,10 +88,12 @@ fun HabitudeApp() {
             composable(Tab.Today.route) {
                 TodayScreen(
                     onAddHabit = { type -> navController.navigate(editRoute(type = type)) },
-                    onOpenHabit = { id -> navController.navigate(editRoute(id = id)) },
+                    onOpenHabit = { id -> navController.navigate(detailRoute(id)) },
                 )
             }
-            composable(Tab.Progress.route) { ProgressScreen() }
+            composable(Tab.Progress.route) {
+                ProgressScreen(onOpenHabit = { id -> navController.navigate(detailRoute(id)) })
+            }
             composable(Tab.Settings.route) { SettingsScreen() }
             composable(
                 route = EDIT_ROUTE,
@@ -101,7 +108,24 @@ fun HabitudeApp() {
                     },
                 ),
             ) {
-                EditHabitScreen(onDone = { navController.popBackStack() })
+                EditHabitScreen(
+                    onDone = { navController.popBackStack() },
+                    onDeleted = {
+                        // Skip past the deleted habit's stats page too.
+                        if (!navController.popBackStack(DETAIL_ROUTE, inclusive = true)) navController.popBackStack()
+                    },
+                )
+            }
+            composable(
+                route = DETAIL_ROUTE,
+                arguments = listOf(navArgument("id") { type = NavType.LongType }),
+            ) { entry ->
+                val id = entry.arguments?.getLong("id") ?: 0L
+                HabitDetailScreen(
+                    habitId = id,
+                    onBack = { navController.popBackStack() },
+                    onEdit = { navController.navigate(editRoute(id = id)) },
+                )
             }
         }
     }
