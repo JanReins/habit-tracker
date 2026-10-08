@@ -56,7 +56,7 @@ fun CalendarHeatmap(
         Canvas(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(header + 7 * 17.dp)
+                .height(header + 17.dp * 7)
                 .pointerInput(firstDay, weeks) {
                     detectTapGestures { tap ->
                         val colStep = (size.width - gutter.toPx()) / weeks
