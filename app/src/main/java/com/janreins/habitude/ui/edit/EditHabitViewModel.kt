@@ -14,6 +14,7 @@ import com.janreins.habitude.HabitudeApplication
 import com.janreins.habitude.data.HabitRepository
 import com.janreins.habitude.domain.Habit
 import com.janreins.habitude.domain.HabitType
+import com.janreins.habitude.notify.ReminderScheduler
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -30,6 +31,8 @@ data class EditHabitState(
     val type: HabitType = HabitType.BUILD,
     val schedule: Set<DayOfWeek> = DayOfWeek.entries.toSet(),
     val createdOn: LocalDate = LocalDate.now(),
+    /** Minutes after midnight, or null for no reminder. */
+    val reminderMinutes: Int? = null,
 ) {
     val canSave: Boolean
         get() = name.isNotBlank() && (type == HabitType.BREAK || schedule.isNotEmpty())
@@ -37,6 +40,7 @@ data class EditHabitState(
 
 class EditHabitViewModel(
     private val repository: HabitRepository,
+    private val reminders: ReminderScheduler,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -60,6 +64,7 @@ class EditHabitViewModel(
                         type = habit.type,
                         schedule = habit.schedule,
                         createdOn = habit.createdOn,
+                        reminderMinutes = habit.reminderMinutes,
                     )
                 }
             }
@@ -70,6 +75,8 @@ class EditHabitViewModel(
     fun setEmoji(emoji: String) { state = state.copy(emoji = emoji) }
     fun setType(type: HabitType) { if (state.isNew) state = state.copy(type = type) }
 
+    fun setReminder(minutes: Int?) { state = state.copy(reminderMinutes = minutes) }
+
     fun toggleDay(day: DayOfWeek) {
         val days = state.schedule
         state = state.copy(schedule = if (day in days) days - day else days + day)
@@ -79,16 +86,17 @@ class EditHabitViewModel(
         val s = state
         if (!s.canSave) return
         viewModelScope.launch {
-            repository.save(
-                Habit(
-                    id = habitId,
-                    name = s.name.trim(),
-                    emoji = s.emoji,
-                    type = s.type,
-                    schedule = if (s.type == HabitType.BUILD) s.schedule else DayOfWeek.entries.toSet(),
-                    createdOn = s.createdOn,
-                ),
+            val habit = Habit(
+                id = habitId,
+                name = s.name.trim(),
+                emoji = s.emoji,
+                type = s.type,
+                schedule = if (s.type == HabitType.BUILD) s.schedule else DayOfWeek.entries.toSet(),
+                createdOn = s.createdOn,
+                reminderMinutes = s.reminderMinutes,
             )
+            val id = repository.save(habit)
+            reminders.schedule(habit.copy(id = id))
             onSaved()
         }
     }
@@ -96,6 +104,7 @@ class EditHabitViewModel(
     fun delete(onDeleted: () -> Unit) {
         viewModelScope.launch {
             repository.delete(habitId)
+            reminders.cancel(habitId)
             onDeleted()
         }
     }
@@ -106,10 +115,8 @@ class EditHabitViewModel(
 
         val Factory = viewModelFactory {
             initializer {
-                EditHabitViewModel(
-                    (this[APPLICATION_KEY] as HabitudeApplication).repository,
-                    createSavedStateHandle(),
-                )
+                val app = this[APPLICATION_KEY] as HabitudeApplication
+                EditHabitViewModel(app.repository, app.reminders, createSavedStateHandle())
             }
         }
     }

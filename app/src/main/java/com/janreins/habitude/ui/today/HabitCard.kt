@@ -26,6 +26,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -91,12 +93,16 @@ fun HabitCard(
 
 @Composable
 private fun CheckButton(done: Boolean, onClick: () -> Unit) {
+    val haptics = LocalHapticFeedback.current
     val container by animateColorAsState(
         if (done) MaterialTheme.colorScheme.primary else Color.Transparent,
         label = "checkContainer",
     )
     Surface(
-        onClick = onClick,
+        onClick = {
+            if (!done) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            onClick()
+        },
         shape = CircleShape,
         color = container,
         border = if (done) null else BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
