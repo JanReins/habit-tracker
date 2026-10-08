@@ -9,7 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
 
-private val LightColors = lightColorScheme(
+internal val LightColors = lightColorScheme(
     primary = SageDeep,
     onPrimary = Cream,
     primaryContainer = SageLight,
@@ -29,7 +29,7 @@ private val LightColors = lightColorScheme(
     outline = Mist,
 )
 
-private val DarkColors = darkColorScheme(
+internal val DarkColors = darkColorScheme(
     primary = SageNight,
     onPrimary = Ink,
     primaryContainer = SageDeep,

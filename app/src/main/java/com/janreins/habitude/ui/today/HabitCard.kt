@@ -134,8 +134,14 @@ private fun CheckButton(name: String, done: Boolean, onClick: () -> Unit) {
 
 private fun days(n: Int) = if (n == 1) "1 day" else "$n days"
 
+private fun weeks(n: Int) = if (n == 1) "1 week" else "$n weeks"
+
 private fun subtitle(state: HabitCardState): String {
     val best = if (state.best > 0) " · best ${days(state.best)}" else ""
+    state.weeklyTarget?.let { target ->
+        val streak = if (state.current > 0) " · 🔥 ${weeks(state.current)}" else ""
+        return "${state.doneThisWeek} of $target this week$streak"
+    }
     return when (state.type) {
         HabitType.BUILD -> when {
             state.current > 0 -> "🔥 ${days(state.current)}$best"

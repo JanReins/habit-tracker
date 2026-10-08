@@ -113,13 +113,13 @@ private fun HabitStats(item: HabitWithEntries, onSetEntry: (LocalDate, Boolean) 
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         if (isBuild) {
             StatTile(
-                "${Streaks.currentBuildStreak(item.entries, habit::isDue, today)}",
-                "Streak 🔥",
+                "${Streaks.current(item, today)}",
+                if (habit.isWeekly) "Weeks 🔥" else "Streak 🔥",
                 Modifier.weight(1f),
             )
             StatTile(
-                "${Streaks.bestBuildStreak(item.entries, habit::isDue, today)}",
-                "Best",
+                "${Streaks.best(item, today)}",
+                if (habit.isWeekly) "Best weeks" else "Best",
                 Modifier.weight(1f),
             )
             StatTile(percent(Stats.completionRate(item, monthAgo, today, today)), "Last 30 days", Modifier.weight(1f))
@@ -148,7 +148,12 @@ private fun HabitStats(item: HabitWithEntries, onSetEntry: (LocalDate, Boolean) 
                     DayMark.NONE -> HeatCell(null)
                 }
             },
-            describe = { day -> dayCaption(day, Stats.dayMark(item, day, today)) },
+            describe = { day ->
+                val mark = Stats.dayMark(item, day, today)
+                // Any day counts towards a weekly goal, so an empty day isn't a "rest day".
+                if (habit.isWeekly && mark == DayMark.REST) "${dayCaption(day, mark).substringBefore(" · ")} · Not done"
+                else dayCaption(day, mark)
+            },
             hint = "Tap a day to see or change it",
             action = { day ->
                 // Forgot to log a day? Fix it here. Days before the habit started stay empty.
@@ -168,7 +173,12 @@ private fun HabitStats(item: HabitWithEntries, onSetEntry: (LocalDate, Boolean) 
             },
         )
         Legend(
-            if (isBuild) {
+            if (habit.isWeekly) {
+                listOf(
+                    LegendItem("Done", palette.build),
+                    LegendItem("Not done", palette.faint),
+                )
+            } else if (isBuild) {
                 listOf(
                     LegendItem("Done", palette.build),
                     LegendItem("Missed", palette.missed),
@@ -185,14 +195,22 @@ private fun HabitStats(item: HabitWithEntries, onSetEntry: (LocalDate, Boolean) 
 
     val weeks = remember(item, today) { Stats.weekly(item, today, BAR_WEEKS) }
     if (isBuild) {
-        ChartCard("Weekly completion") {
+        val target = habit.weeklyTarget.takeIf { habit.isWeekly }
+        ChartCard(if (target != null) "Weekly goal" else "Weekly completion") {
             WeeklyBars(
                 weeks = weeks,
                 color = color,
                 maxValue = 1f,
                 ticks = listOf(0f, 0.5f, 1f),
                 tickLabel = { percent(it) },
-                describe = { "${weekLabel(it.weekStart)} · ${percent(it.value)} of planned days" },
+                describe = {
+                    if (target != null) {
+                        val done = Math.round((it.value ?: 0f) * target)
+                        "${weekLabel(it.weekStart)} · $done of $target"
+                    } else {
+                        "${weekLabel(it.weekStart)} · ${percent(it.value)} of planned days"
+                    }
+                },
             )
         }
     } else {
@@ -210,7 +228,13 @@ private fun HabitStats(item: HabitWithEntries, onSetEntry: (LocalDate, Boolean) 
     }
 
     val runs = remember(item, today) { Stats.runs(item, today) }
-    ChartCard(if (isBuild) "Streak history" else "Clean runs") {
+    ChartCard(
+        when {
+            habit.isWeekly -> "Streak history, in weeks"
+            isBuild -> "Streak history"
+            else -> "Clean runs"
+        },
+    ) {
         if (runs.isEmpty()) {
             Text(
                 if (isBuild) "Your first streak starts with one tick." else "Your first clean day is on its way.",
