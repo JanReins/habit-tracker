@@ -1,0 +1,5 @@
+<resources>
+    <style name="Theme.Habitude" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/cream</item>
+    </style>
+</resources>

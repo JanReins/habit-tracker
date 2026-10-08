@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Progress ring, three quarters full -->
+    <path
+        android:pathData="M54,32 A22,22 0 1,1 32,54"
+        android:strokeColor="@color/sage"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M32,54 A22,22 0 0,1 54,32"
+        android:strokeColor="#337E9C86"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+    <!-- Check mark -->
+    <path
+        android:pathData="M44,55 L51,62 L65,47"
+        android:strokeColor="@color/sage_dark"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+</vector>
