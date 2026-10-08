@@ -22,9 +22,14 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
+import com.janreins.habitude.domain.HabitType
+import com.janreins.habitude.ui.edit.EditHabitScreen
+import com.janreins.habitude.ui.edit.EditHabitViewModel
 import com.janreins.habitude.ui.screens.ProgressScreen
 import com.janreins.habitude.ui.screens.SettingsScreen
-import com.janreins.habitude.ui.screens.TodayScreen
+import com.janreins.habitude.ui.today.TodayScreen
 
 private enum class Tab(val route: String, val label: String, val icon: ImageVector) {
     Today("today", "Today", Icons.Outlined.WbSunny),
@@ -32,16 +37,23 @@ private enum class Tab(val route: String, val label: String, val icon: ImageVect
     Settings("settings", "Settings", Icons.Outlined.Settings),
 }
 
+private val EDIT_ROUTE =
+    "habit?${EditHabitViewModel.ARG_ID}={${EditHabitViewModel.ARG_ID}}&${EditHabitViewModel.ARG_TYPE}={${EditHabitViewModel.ARG_TYPE}}"
+
+private fun editRoute(id: Long = 0, type: HabitType = HabitType.BUILD) =
+    "habit?${EditHabitViewModel.ARG_ID}=$id&${EditHabitViewModel.ARG_TYPE}=${type.name}"
+
 @Composable
 fun HabitudeApp() {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
+    val showTabs = currentDestination == null || Tab.entries.any { it.route == currentDestination.route }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+            if (showTabs) NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
                 Tab.entries.forEach { tab ->
                     val selected = currentDestination?.hierarchy?.any { it.route == tab.route } == true
                     NavigationBarItem(
@@ -68,9 +80,29 @@ fun HabitudeApp() {
             startDestination = Tab.Today.route,
             modifier = Modifier.padding(innerPadding),
         ) {
-            composable(Tab.Today.route) { TodayScreen() }
+            composable(Tab.Today.route) {
+                TodayScreen(
+                    onAddHabit = { type -> navController.navigate(editRoute(type = type)) },
+                    onOpenHabit = { id -> navController.navigate(editRoute(id = id)) },
+                )
+            }
             composable(Tab.Progress.route) { ProgressScreen() }
             composable(Tab.Settings.route) { SettingsScreen() }
+            composable(
+                route = EDIT_ROUTE,
+                arguments = listOf(
+                    navArgument(EditHabitViewModel.ARG_ID) {
+                        type = NavType.LongType
+                        defaultValue = 0L
+                    },
+                    navArgument(EditHabitViewModel.ARG_TYPE) {
+                        type = NavType.StringType
+                        defaultValue = HabitType.BUILD.name
+                    },
+                ),
+            ) {
+                EditHabitScreen(onDone = { navController.popBackStack() })
+            }
         }
     }
 }
