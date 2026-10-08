@@ -51,6 +51,7 @@ import java.util.Locale
 @Composable
 fun EditHabitScreen(
     onDone: () -> Unit,
+    onDeleted: () -> Unit,
     viewModel: EditHabitViewModel = viewModel(factory = EditHabitViewModel.Factory),
 ) {
     val state = viewModel.state
@@ -198,7 +199,7 @@ fun EditHabitScreen(
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false
-                    viewModel.delete(onDone)
+                    viewModel.delete(onDeleted)
                 }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
