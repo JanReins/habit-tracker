@@ -37,6 +37,7 @@ data class BackupHabit(
     val entries: List<String>,
     /** Earlier schedules, oldest first. Missing in backups from before schedule history. */
     val pastSchedules: List<BackupPastSchedule> = emptyList(),
+    val archived: Boolean = false,
 )
 
 @Serializable
@@ -84,6 +85,7 @@ object Backup {
                         pastSchedules = habit.pastSchedules.map { past ->
                             BackupPastSchedule(past.until.toString(), past.days.map { it.value }.sorted())
                         },
+                        archived = habit.archived,
                     )
                 },
             ),
@@ -127,6 +129,7 @@ object Backup {
                             }
                             .distinctBy { it.until }
                             .sortedBy { it.until },
+                        archived = h.archived,
                     ),
                     entries = h.entries.map { LocalDate.parse(it) }.toSet(),
                 )

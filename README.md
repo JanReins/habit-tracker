@@ -7,7 +7,9 @@ A small, good-looking Android app for building the habits you want and quitting 
 - Kotlin + Jetpack Compose app with a soft sage-and-clay Material 3 theme (light and dark)
 - Three tabs: **Today**, **Progress** and **Settings**
 - **Build** habits: tick them off on their scheduled days to grow a 🔥 streak; rest days don't break it
-- **Break** habits: count your days clean, and log a slip honestly when it happens
+- **Break** habits: count your days clean, and log a slip honestly when it happens. Set a "clean since" date if you quit before you started using the app
+- **Today** shows how many of today's habits are done, with the ones still to do at the top
+- **Archive** a habit you're pausing: it keeps its history, leaves Today and stops its reminders, and can be restored from its edit screen
 - Current and best streak on every habit, all stored on the phone (no account)
 - Tap a habit for its stats: a 20-week calendar heatmap, weekly completion (or slips) bars and streak history
 - Forgot to log a day? Tap it on the habit's heatmap to mark it done (or log or remove a slip)

@@ -43,7 +43,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.janreins.habitude.domain.HabitType
+import android.app.DatePickerDialog
 import android.app.TimePickerDialog
+import androidx.activity.compose.BackHandler
+import androidx.compose.material.icons.outlined.Event
+import androidx.compose.material3.OutlinedButton
+import java.time.LocalDate
 import android.text.format.DateFormat
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.NotificationsOff
@@ -66,7 +71,18 @@ fun EditHabitScreen(
 ) {
     val state = viewModel.state
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
+    var confirmDiscard by rememberSaveable { mutableStateOf(false) }
     val isBuild = state.type == HabitType.BUILD
+    val leave: () -> Unit = {
+        if (viewModel.hasChanges) {
+            confirmDiscard = true
+        } else {
+            onDone()
+        }
+    }
+
+    // Back with unsaved changes asks first instead of quietly dropping them.
+    BackHandler(enabled = viewModel.hasChanges) { confirmDiscard = true }
 
     Column(
         modifier = Modifier
@@ -77,7 +93,7 @@ fun EditHabitScreen(
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onDone) {
+            IconButton(onClick = leave) {
                 Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
             }
             Text(
@@ -178,6 +194,7 @@ fun EditHabitScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            CleanSinceRow(day = state.createdOn, onChange = viewModel::setCreatedOn)
         }
 
         ReminderRow(minutes = state.reminderMinutes, onChange = viewModel::setReminder)
@@ -194,6 +211,22 @@ fun EditHabitScreen(
         }
 
         if (!state.isNew) {
+            OutlinedButton(
+                onClick = { viewModel.save(onDone, archived = !state.archived) },
+                enabled = state.canSave,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(if (state.archived) "Restore habit" else "Archive habit")
+            }
+            Text(
+                if (state.archived) {
+                    "Archived: kept with its history, but hidden from Today and with no reminders."
+                } else {
+                    "Archiving keeps the habit and its history, but hides it from Today and stops its reminders."
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             TextButton(
                 onClick = { confirmDelete = true },
                 modifier = Modifier.align(Alignment.CenterHorizontally),
@@ -201,6 +234,23 @@ fun EditHabitScreen(
                 Text("Delete habit", color = MaterialTheme.colorScheme.error)
             }
         }
+    }
+
+    if (confirmDiscard) {
+        AlertDialog(
+            onDismissRequest = { confirmDiscard = false },
+            title = { Text("Discard changes?") },
+            text = { Text("What you changed here won't be saved.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDiscard = false
+                    onDone()
+                }) { Text("Discard") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDiscard = false }) { Text("Keep editing") }
+            },
+        )
     }
 
     if (confirmDelete) {
@@ -263,6 +313,52 @@ private fun ReminderRow(minutes: Int?, onChange: (Int?) -> Unit) {
                 Switch(
                     checked = minutes != null,
                     onCheckedChange = { on -> if (on) pickTime(DEFAULT_REMINDER) else onChange(null) },
+                )
+            }
+        }
+    }
+}
+
+/** When a break habit's clean run started. Defaults to today; can be set back to when you quit. */
+@Composable
+private fun CleanSinceRow(day: LocalDate, onChange: (LocalDate) -> Unit) {
+    val context = LocalContext.current
+    val pickDay = {
+        DatePickerDialog(
+            context,
+            { _, year, month, dayOfMonth -> onChange(LocalDate.of(year, month + 1, dayOfMonth)) },
+            day.year,
+            day.monthValue - 1,
+            day.dayOfMonth,
+        ).apply { datePicker.maxDate = System.currentTimeMillis() }.show()
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FieldLabel("Clean since")
+        Surface(
+            onClick = pickDay,
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.surfaceVariant,
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Icon(
+                    Icons.Outlined.Event,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    if (day == LocalDate.now()) "Today" else day.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    "Change",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
                 )
             }
         }

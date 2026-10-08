@@ -21,6 +21,7 @@ object Reminders {
     /** The reminder for one habit today, or null if there's nothing to remind about. */
     fun reminderFor(item: HabitWithEntries, today: LocalDate): ReminderText? {
         val habit = item.habit
+        if (habit.archived) return null
         val title = "${habit.emoji} ${habit.name}"
         return when (habit.type) {
             HabitType.BUILD -> {
@@ -41,7 +42,7 @@ object Reminders {
     /** Build habits due today, not done yet, with a streak of at least [minStreak] that would break tonight. */
     fun atRisk(items: List<HabitWithEntries>, today: LocalDate, minStreak: Int = 2): List<Pair<HabitWithEntries, Int>> =
         items
-            .filter { it.habit.type == HabitType.BUILD && it.habit.isDue(today) && today !in it.entries }
+            .filter { !it.habit.archived && it.habit.type == HabitType.BUILD && it.habit.isDue(today) && today !in it.entries }
             .map { it to Streaks.currentBuildStreak(it.entries, it.habit::isDue, today) }
             .filter { (_, streak) -> streak >= minStreak }
             .sortedByDescending { (_, streak) -> streak }

@@ -34,6 +34,7 @@ data class EditHabitState(
     val createdOn: LocalDate = LocalDate.now(),
     /** Minutes after midnight, or null for no reminder. */
     val reminderMinutes: Int? = null,
+    val archived: Boolean = false,
 ) {
     val canSave: Boolean
         get() = name.isNotBlank() && (type == HabitType.BREAK || schedule.isNotEmpty())
@@ -57,6 +58,11 @@ class EditHabitViewModel(
     )
         private set
 
+    /** The form as it was opened, to tell whether leaving would lose anything. */
+    private var initial by mutableStateOf(state)
+
+    val hasChanges: Boolean get() = state != initial
+
     init {
         if (habitId != 0L) {
             viewModelScope.launch {
@@ -70,7 +76,9 @@ class EditHabitViewModel(
                         schedule = habit.schedule,
                         createdOn = habit.createdOn,
                         reminderMinutes = habit.reminderMinutes,
+                        archived = habit.archived,
                     )
+                    initial = state
                 }
             }
         }
@@ -82,12 +90,16 @@ class EditHabitViewModel(
 
     fun setReminder(minutes: Int?) { state = state.copy(reminderMinutes = minutes) }
 
+    /** "Clean since" for a break habit. Never later than today. */
+    fun setCreatedOn(day: LocalDate) { state = state.copy(createdOn = minOf(day, DayClock.today())) }
+
     fun toggleDay(day: DayOfWeek) {
         val days = state.schedule
         state = state.copy(schedule = if (day in days) days - day else days + day)
     }
 
-    fun save(onSaved: () -> Unit) {
+    /** Saves the form; [archived] also archives or restores the habit. */
+    fun save(onSaved: () -> Unit, archived: Boolean = state.archived) {
         val s = state
         if (!s.canSave) return
         viewModelScope.launch {
@@ -95,7 +107,14 @@ class EditHabitViewModel(
             // A changed schedule applies from today; earlier days keep the one they had.
             val base = loaded?.withSchedule(schedule, DayClock.today())
                 ?: Habit(id = habitId, name = "", emoji = "", type = s.type, schedule = schedule, createdOn = s.createdOn)
-            val habit = base.copy(name = s.name.trim(), emoji = s.emoji, reminderMinutes = s.reminderMinutes)
+            val habit = base.copy(
+                name = s.name.trim(),
+                emoji = s.emoji,
+                reminderMinutes = s.reminderMinutes,
+                archived = archived,
+                // A break habit's start is its "clean since" date, which can be moved.
+                createdOn = if (s.type == HabitType.BREAK) s.createdOn else base.createdOn,
+            )
             val id = repository.save(habit)
             reminders.schedule(habit.copy(id = id))
             onSaved()

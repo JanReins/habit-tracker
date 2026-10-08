@@ -19,7 +19,7 @@ class ReminderScheduler(private val context: Context) {
 
     fun schedule(habit: Habit) {
         val minutes = habit.reminderMinutes
-        if (minutes == null) {
+        if (minutes == null || habit.archived) {
             cancel(habit.id)
         } else {
             set(habitIntent(habit.id), minutes)
