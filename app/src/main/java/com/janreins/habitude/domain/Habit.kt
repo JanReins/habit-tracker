@@ -67,12 +67,14 @@ data class PastSchedule(val until: LocalDate, val days: Set<DayOfWeek>)
 /**
  * A habit with every day it has an entry for. For a [HabitType.BUILD] habit an entry
  * means "done that day"; for a [HabitType.BREAK] habit it means "slipped that day".
- * A count habit also has its running count for each day it was counted.
+ * A count habit also has its running count for each day it was counted, and any day can
+ * carry a short note.
  */
 data class HabitWithEntries(
     val habit: Habit,
     val entries: Set<LocalDate>,
     val counts: Map<LocalDate, Int> = emptyMap(),
+    val notes: Map<LocalDate, String> = emptyMap(),
 ) {
     /** How many were counted on [day]. A day ticked done without a count counts as the goal. */
     fun countOn(day: LocalDate): Int = Counts.current(counts[day], day in entries, habit.dailyTarget ?: 1)

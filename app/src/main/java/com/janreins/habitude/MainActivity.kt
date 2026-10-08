@@ -4,7 +4,6 @@ import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.WindowManager
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -12,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.lifecycleScope
@@ -19,6 +19,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.janreins.habitude.domain.Days
 import com.janreins.habitude.ui.CelebrationHost
 import com.janreins.habitude.ui.DayClock
+import com.janreins.habitude.ui.lock.Biometrics
 import com.janreins.habitude.ui.lock.LockScreen
 import com.janreins.habitude.ui.navigation.HabitudeApp
 import com.janreins.habitude.ui.theme.HabitudeTheme
@@ -39,7 +40,8 @@ class LockState : ViewModel() {
     var leftAt = 0L
 }
 
-class MainActivity : ComponentActivity() {
+/** A FragmentActivity (still a ComponentActivity) so it can show the fingerprint or face prompt. */
+class MainActivity : FragmentActivity() {
     private val settings by lazy { (application as HabitudeApplication).settings }
     private val lock: LockState by viewModels()
 
@@ -72,6 +74,17 @@ class MainActivity : ComponentActivity() {
                             onAttempt = { failures, lockedUntil ->
                                 settings.pinFailures = failures
                                 settings.pinLockedUntil = lockedUntil
+                            },
+                            onUseBiometrics = if (settings.biometricUnlock && Biometrics.available(this@MainActivity)) {
+                                {
+                                    Biometrics.prompt(this@MainActivity, "Unlock Habitude") {
+                                        settings.pinFailures = 0
+                                        settings.pinLockedUntil = 0L
+                                        lock.locked = false
+                                    }
+                                }
+                            } else {
+                                null
                             },
                         )
                     }

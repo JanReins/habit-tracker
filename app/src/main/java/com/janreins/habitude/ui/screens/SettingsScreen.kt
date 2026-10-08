@@ -45,19 +45,27 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import android.net.Uri
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableLongStateOf
 import com.janreins.habitude.HabitudeApplication
+import com.janreins.habitude.backup.AutoBackup
 import com.janreins.habitude.domain.Backup
 import com.janreins.habitude.domain.BackupContents
 import com.janreins.habitude.domain.BackupException
 import com.janreins.habitude.notify.Notifications
+import com.janreins.habitude.ui.lock.Biometrics
 import com.janreins.habitude.ui.lock.PinPad
+import com.janreins.habitude.ui.lock.findFragmentActivity
 import com.janreins.habitude.ui.plural
 import com.janreins.habitude.ui.rememberNotificationPermissionRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
+import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 @Composable
@@ -173,6 +181,10 @@ private fun AppLockCard(app: HabitudeApplication) {
     var error by remember { mutableStateOf<String?>(null) }
     var resetKey by remember { mutableIntStateOf(0) }
     var busy by remember { mutableStateOf(false) }
+    var biometric by remember { mutableStateOf(app.settings.biometricUnlock) }
+    // Checked again on return, in case a fingerprint was just added in Android settings.
+    var canUseBiometrics by remember { mutableStateOf(Biometrics.available(context)) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { canUseBiometrics = Biometrics.available(context) }
 
     fun start(next: PinStep) {
         error = null
@@ -214,6 +226,7 @@ private fun AppLockCard(app: HabitudeApplication) {
                         current == PinStep.VerifyToDisable -> {
                             app.settings.clearPin()
                             hasPin = false
+                            biometric = false
                             step = null
                             Toast.makeText(context, "App lock is off.", Toast.LENGTH_SHORT).show()
                         }
@@ -239,6 +252,35 @@ private fun AppLockCard(app: HabitudeApplication) {
                 checked = hasPin,
                 onCheckedChange = { on -> start(if (on) PinStep.Choose else PinStep.VerifyToDisable) },
             )
+        }
+        if (hasPin && canUseBiometrics) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Fingerprint or face", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Unlock with your fingerprint or face. The PIN still works too.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = biometric,
+                    onCheckedChange = { on ->
+                        if (!on) {
+                            biometric = false
+                            app.settings.biometricUnlock = false
+                        } else {
+                            // Check it works before relying on it.
+                            context.findFragmentActivity()?.let { activity ->
+                                Biometrics.prompt(activity, "Turn on fingerprint or face unlock") {
+                                    biometric = true
+                                    app.settings.biometricUnlock = true
+                                }
+                            }
+                        }
+                    },
+                )
+            }
         }
         if (hasPin) {
             OutlinedButton(onClick = { start(PinStep.VerifyToChange) }) { Text("Change PIN") }
@@ -341,6 +383,8 @@ private fun BackupCard(app: HabitudeApplication, onNudgeChanged: (Boolean) -> Un
         }
     }
 
+    AutoBackupCard(app)
+
     pending?.let { contents ->
         val made = runCatching {
             LocalDateTime.parse(contents.exportedAt).format(DateTimeFormatter.ofPattern("d MMM yyyy, HH:mm"))
@@ -376,5 +420,104 @@ private fun BackupCard(app: HabitudeApplication, onNudgeChanged: (Boolean) -> Un
             },
             dismissButton = { TextButton(onClick = { pending = null }) { Text("Cancel") } },
         )
+    }
+}
+
+/** Weekly backups to a folder the user picks, such as Downloads or a synced Drive folder. */
+@Composable
+private fun AutoBackupCard(app: HabitudeApplication) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var folder by remember { mutableStateOf(app.settings.autoBackupFolder?.let(Uri::parse)) }
+    var folderName by remember { mutableStateOf<String?>(null) }
+    var last by remember { mutableLongStateOf(app.settings.lastAutoBackup) }
+    var failed by remember { mutableStateOf(app.settings.autoBackupFailed) }
+    var busy by remember { mutableStateOf(false) }
+    val toast = { text: String -> Toast.makeText(context, text, Toast.LENGTH_LONG).show() }
+
+    LaunchedEffect(folder) {
+        folderName = folder?.let { withContext(Dispatchers.IO) { AutoBackup.folderName(context, it) } }
+    }
+    // A backup may have run in the background since this screen was last shown.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        last = app.settings.lastAutoBackup
+        failed = app.settings.autoBackupFailed
+    }
+
+    fun backUpNow() {
+        busy = true
+        scope.launch {
+            val ok = withContext(Dispatchers.IO) { AutoBackup.runNow(context) }
+            busy = false
+            last = app.settings.lastAutoBackup
+            failed = !ok
+            toast(if (ok) "Backup saved." else "Couldn't save to that folder. Try picking it again.")
+        }
+    }
+
+    val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val ok = runCatching { AutoBackup.keepAccess(context, uri) }.isSuccess
+        if (!ok) {
+            toast("Habitude can't keep access to that folder. Try another one.")
+            return@rememberLauncherForActivityResult
+        }
+        folder?.takeIf { it != uri }?.let { AutoBackup.releaseAccess(context, it) }
+        app.settings.autoBackupFolder = uri.toString()
+        folder = uri
+        AutoBackup.schedule(context, true)
+        backUpNow()
+    }
+
+    SettingsCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Weekly backup", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Save a backup to a folder you choose every week. The newest ${Backup.AUTO_KEEP} are kept.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(
+                checked = folder != null,
+                onCheckedChange = { on ->
+                    if (on) {
+                        pickFolder.launch(null)
+                    } else {
+                        folder?.let { AutoBackup.releaseAccess(context, it) }
+                        app.settings.autoBackupFolder = null
+                        app.settings.autoBackupFailed = false
+                        AutoBackup.schedule(context, false)
+                        folder = null
+                        failed = false
+                    }
+                },
+            )
+        }
+        if (folder != null) {
+            val lastLine = if (last == 0L) {
+                "Not saved yet."
+            } else {
+                "Last saved " + Instant.ofEpochMilli(last).atZone(ZoneId.systemDefault())
+                    .format(DateTimeFormatter.ofPattern("d MMM, HH:mm")) + "."
+            }
+            Text(
+                "To ${folderName ?: "the chosen folder"}. $lastLine",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (failed) {
+                Text(
+                    "The last backup couldn't be saved. The folder may have moved; pick it again.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                FilledTonalButton(onClick = ::backUpNow, enabled = !busy) { Text("Back up now") }
+                OutlinedButton(onClick = { pickFolder.launch(folder) }, enabled = !busy) { Text("Change folder") }
+            }
+        }
     }
 }

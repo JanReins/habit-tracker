@@ -75,6 +75,15 @@ class TodayViewModel(
         viewModelScope.launch { repository.setEntry(habitId, day, logged) }
     }
 
+    /** Logs a slip on the day shown, with an optional note on what led to it. */
+    fun logSlip(habitId: Long, note: String) {
+        val day = state.value.day ?: return
+        viewModelScope.launch {
+            repository.setEntry(habitId, day, true)
+            if (note.isNotBlank()) repository.setNote(habitId, day, note)
+        }
+    }
+
     /** Counts a counted habit up (or down, with a negative [delta]) on the day shown. */
     fun addCount(habitId: Long, delta: Int) {
         val day = state.value.day ?: return

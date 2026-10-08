@@ -44,6 +44,8 @@ data class BackupHabit(
     val dailyTarget: Int? = null,
     /** yyyy-MM-dd to the count that day, for a counted habit. */
     val counts: Map<String, Int> = emptyMap(),
+    /** yyyy-MM-dd to the note written on that day. */
+    val notes: Map<String, String> = emptyMap(),
 )
 
 @Serializable
@@ -66,6 +68,21 @@ object Backup {
     const val APP_NAME = "Habitude"
     const val FORMAT_VERSION = 1
 
+    /** How many automatic backups to keep in the chosen folder; older ones are removed. */
+    const val AUTO_KEEP = 4
+
+    private const val AUTO_PREFIX = "habitude-auto-"
+
+    /** The file name for an automatic backup made on [day]. Sorts by date. */
+    fun autoFileName(day: LocalDate): String = "$AUTO_PREFIX$day.json"
+
+    /**
+     * Of the file names in the backup folder, the automatic backups to delete so only the
+     * newest [keep] remain. Anything else in the folder is never touched.
+     */
+    fun autoBackupsToDelete(names: List<String>, keep: Int = AUTO_KEEP): List<String> =
+        names.filter { it.startsWith(AUTO_PREFIX) && it.endsWith(".json") }.sortedDescending().drop(keep)
+
     private val json = Json {
         prettyPrint = true
         ignoreUnknownKeys = true
@@ -78,7 +95,7 @@ object Backup {
             BackupFile(
                 exportedAt = now.withNano(0).toString(),
                 eveningNudge = eveningNudge,
-                habits = items.map { (habit, entries, counts) ->
+                habits = items.map { (habit, entries, counts, notes) ->
                     BackupHabit(
                         id = habit.id,
                         name = habit.name,
@@ -95,6 +112,7 @@ object Backup {
                         weeklyTarget = habit.weeklyTarget,
                         dailyTarget = habit.dailyTarget,
                         counts = counts.toSortedMap().mapKeys { it.key.toString() },
+                        notes = notes.toSortedMap().mapKeys { it.key.toString() },
                     )
                 },
             ),
@@ -147,6 +165,10 @@ object Backup {
                         .mapKeys { LocalDate.parse(it.key) }
                         .mapValues { it.value.coerceIn(0, Counts.MAX_COUNT) }
                         .filterValues { it > 0 },
+                    notes = h.notes
+                        .mapKeys { LocalDate.parse(it.key) }
+                        .mapValues { Notes.clean(it.value) }
+                        .filterValues { it.isNotEmpty() },
                 )
             } catch (e: IllegalArgumentException) {
                 throw BackupException("This backup is damaged: \"${h.name}\" couldn't be read.")

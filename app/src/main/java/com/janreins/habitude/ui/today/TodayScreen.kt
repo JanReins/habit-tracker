@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.Spa
@@ -25,6 +26,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -36,11 +38,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.janreins.habitude.domain.DayProgress
 import com.janreins.habitude.domain.HabitType
+import com.janreins.habitude.domain.Notes
 import com.janreins.habitude.ui.DayClock
 import com.janreins.habitude.ui.greetingFor
 import com.janreins.habitude.ui.screens.EmptyStateCard
@@ -128,13 +132,27 @@ fun TodayScreen(
 
     confirmSlipFor?.let { id ->
         val name = state.breaking.firstOrNull { it.id == id }?.name.orEmpty()
+        var note by rememberSaveable(id) { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { confirmSlipFor = null },
             title = { Text("Log a slip?") },
-            text = { Text("This resets your clean run for \"$name\". Be kind to yourself, it's one day.") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("This resets your clean run for \"$name\". Be kind to yourself, it's one day.")
+                    // Writing down what led to it helps spot the triggers over time.
+                    OutlinedTextField(
+                        value = note,
+                        onValueChange = { note = it.take(Notes.MAX_LENGTH) },
+                        label = { Text("What led to it? (optional)") },
+                        minLines = 2,
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
             confirmButton = {
                 TextButton(onClick = {
-                    viewModel.setLoggedToday(id, true)
+                    viewModel.logSlip(id, note)
                     confirmSlipFor = null
                 }) { Text("Log slip") }
             },
