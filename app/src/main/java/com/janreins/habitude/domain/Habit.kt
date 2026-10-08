@@ -17,11 +17,14 @@ data class Habit(
     val emoji: String,
     val type: HabitType,
     val schedule: Set<DayOfWeek> = DayOfWeek.entries.toSet(),
+    /** The day the habit started. For a break habit this is "clean since", and can be in the past. */
     val createdOn: LocalDate,
     /** Daily reminder time in minutes after midnight, or null for no reminder. */
     val reminderMinutes: Int? = null,
     /** Earlier schedules, so changing the days doesn't rewrite the past. Oldest first. */
     val pastSchedules: List<PastSchedule> = emptyList(),
+    /** Archived habits keep their history but leave Today and send no reminders. */
+    val archived: Boolean = false,
 ) {
     /** Whether the habit was due on [day], using the schedule that applied then. */
     fun isDue(day: LocalDate): Boolean {

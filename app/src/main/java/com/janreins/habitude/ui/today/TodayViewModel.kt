@@ -7,9 +7,11 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.janreins.habitude.HabitudeApplication
 import com.janreins.habitude.data.HabitRepository
+import com.janreins.habitude.domain.DayProgress
 import com.janreins.habitude.domain.HabitType
 import com.janreins.habitude.domain.HabitWithEntries
 import com.janreins.habitude.domain.Streaks
+import com.janreins.habitude.domain.TodayList
 import com.janreins.habitude.ui.DayClock
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -36,6 +38,8 @@ data class TodayUiState(
     val loading: Boolean = true,
     /** The day the cards are for. */
     val day: LocalDate? = null,
+    /** Build habits done out of those due today. */
+    val progress: DayProgress = DayProgress(0, 0),
     val building: List<HabitCardState> = emptyList(),
     val breaking: List<HabitCardState> = emptyList(),
 ) {
@@ -48,10 +52,12 @@ class TodayViewModel(
 ) : ViewModel() {
 
     val state: StateFlow<TodayUiState> = combine(repository.habits, today) { habits, day ->
-        val cards = habits.map { it.toCard(day) }
+        val active = habits.filter { !it.habit.archived }
+        val cards = TodayList.order(active, day).map { it.toCard(day) }
         TodayUiState(
             loading = false,
             day = day,
+            progress = TodayList.progress(active, day),
             building = cards.filter { it.type == HabitType.BUILD },
             breaking = cards.filter { it.type == HabitType.BREAK },
         )

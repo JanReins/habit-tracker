@@ -7,11 +7,13 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.Spa
@@ -21,6 +23,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -31,9 +34,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.janreins.habitude.domain.DayProgress
 import com.janreins.habitude.domain.HabitType
 import com.janreins.habitude.ui.DayClock
 import com.janreins.habitude.ui.greetingFor
@@ -64,6 +70,10 @@ fun TodayScreen(
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(greetingFor(now.hour), style = MaterialTheme.typography.displaySmall)
+                    if (state.progress.due > 0) {
+                        Spacer(Modifier.height(16.dp))
+                        DayProgressLine(state.progress)
+                    }
                 }
             }
 
@@ -76,6 +86,8 @@ fun TodayScreen(
                 items(state.building, key = { it.id }) { card ->
                     HabitCard(
                         state = card,
+                        // Slides into place when ticking moves it between to-do and done.
+                        modifier = Modifier.animateItem(),
                         onOpen = { onOpenHabit(card.id) },
                         onToggleDone = { viewModel.setLoggedToday(card.id, !card.loggedToday) },
                         onSlip = {},
@@ -89,6 +101,7 @@ fun TodayScreen(
                 items(state.breaking, key = { it.id }) { card ->
                     HabitCard(
                         state = card,
+                        modifier = Modifier.animateItem(),
                         onOpen = { onOpenHabit(card.id) },
                         onToggleDone = {},
                         onSlip = { confirmSlipFor = card.id },
@@ -127,6 +140,31 @@ fun TodayScreen(
             dismissButton = {
                 TextButton(onClick = { confirmSlipFor = null }) { Text("Cancel") }
             },
+        )
+    }
+}
+
+@Composable
+private fun DayProgressLine(progress: DayProgress) {
+    val allDone = progress.done == progress.due
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            when {
+                allDone && progress.due == 1 -> "Done for today 🎉"
+                allDone -> "All ${progress.due} done today 🎉"
+                else -> "${progress.done} of ${progress.due} done today"
+            },
+            style = MaterialTheme.typography.titleMedium,
+        )
+        LinearProgressIndicator(
+            progress = { progress.done.toFloat() / progress.due },
+            strokeCap = StrokeCap.Round,
+            gapSize = 0.dp,
+            drawStopIndicator = {},
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+                .clip(RoundedCornerShape(4.dp)),
         )
     }
 }

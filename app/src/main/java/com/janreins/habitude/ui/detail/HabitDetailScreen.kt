@@ -90,6 +90,13 @@ fun HabitDetailScreen(
                 Icon(Icons.Outlined.Edit, contentDescription = "Edit habit")
             }
         }
+        if (item.habit.archived) {
+            Text(
+                "Archived. Tap the pencil to restore it.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         HabitStats(item, onSetEntry = { day, present -> viewModel.setEntry(habitId, day, present) })
     }
 }

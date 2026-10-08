@@ -74,13 +74,23 @@ fun ProgressScreen(
                 body = "Add a habit on the Today tab. Heatmaps, streak history and weekly trends will show up here.",
             )
         } else if (items != null) {
-            ProgressContent(items, today, onOpenHabit)
+            ProgressContent(
+                items = items.filter { !it.habit.archived },
+                archived = items.filter { it.habit.archived },
+                today = today,
+                onOpenHabit = onOpenHabit,
+            )
         }
     }
 }
 
 @Composable
-private fun ProgressContent(items: List<HabitWithEntries>, today: LocalDate, onOpenHabit: (Long) -> Unit) {
+private fun ProgressContent(
+    items: List<HabitWithEntries>,
+    archived: List<HabitWithEntries>,
+    today: LocalDate,
+    onOpenHabit: (Long) -> Unit,
+) {
     val builds = items.filter { it.habit.type == HabitType.BUILD }
     val overall = remember(items, today) {
         Stats.dailyOverall(items, today.minusDays(7L * 20), today, today)
@@ -118,9 +128,19 @@ private fun ProgressContent(items: List<HabitWithEntries>, today: LocalDate, onO
         }
     }
 
-    ChartCard("Your habits") {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            items.forEach { item -> HabitRow(item, today, onClick = { onOpenHabit(item.habit.id) }) }
+    if (items.isNotEmpty()) {
+        ChartCard("Your habits") {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                items.forEach { item -> HabitRow(item, today, onClick = { onOpenHabit(item.habit.id) }) }
+            }
+        }
+    }
+
+    if (archived.isNotEmpty()) {
+        ChartCard("Archived") {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                archived.forEach { item -> HabitRow(item, today, onClick = { onOpenHabit(item.habit.id) }) }
+            }
         }
     }
 }

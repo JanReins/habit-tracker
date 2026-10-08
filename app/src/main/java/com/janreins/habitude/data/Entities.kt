@@ -1,5 +1,6 @@
 package com.janreins.habitude.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -18,6 +19,7 @@ data class HabitEntity(
     val createdOnEpochDay: Long,
     /** Minutes after midnight for the daily reminder; null means no reminder. */
     val reminderMinutes: Int? = null,
+    @ColumnInfo(defaultValue = "0") val archived: Boolean = false,
 )
 
 /** One row per habit per day: "done" for build habits, "slipped" for break habits. */
