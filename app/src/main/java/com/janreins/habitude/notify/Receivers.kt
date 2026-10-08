@@ -36,7 +36,7 @@ class ReminderReceiver : BroadcastReceiver() {
                     val id = intent.getLongExtra(EXTRA_HABIT_ID, 0L)
                     val item = items.firstOrNull { it.habit.id == id } ?: return@work
                     Reminders.reminderFor(item, today)?.let { text ->
-                        Notifications.showReminder(context, id, text, offerDone = item.habit.type == HabitType.BUILD)
+                        Notifications.showReminder(context, id, today, text, offerDone = item.habit.type == HabitType.BUILD)
                     }
                     app.reminders.schedule(item.habit)
                 }
@@ -61,18 +61,35 @@ class DoneReceiver : BroadcastReceiver() {
         val app = context.applicationContext as HabitudeApplication
         val id = intent.getLongExtra(EXTRA_HABIT_ID, 0L)
         if (id == 0L) return
+        // The reminder's own day; reminders posted before this was added carry none.
+        val day = intent.getLongExtra(EXTRA_EPOCH_DAY, Long.MIN_VALUE)
+            .takeIf { it != Long.MIN_VALUE }
+            ?.let(LocalDate::ofEpochDay)
+            ?: LocalDate.now()
         work {
-            app.repository.setEntry(id, LocalDate.now(), present = true)
+            app.repository.setEntry(id, day, present = true)
             Notifications.cancel(context, id.toInt())
         }
     }
 }
 
-/** Alarms don't survive a restart, so set them all again after boot or an app update. */
+/**
+ * Alarms don't survive a restart and are set for a fixed moment, so set them all again after
+ * boot, an app update, or a change of clock or time zone.
+ */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != Intent.ACTION_BOOT_COMPLETED && intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
+        if (intent.action !in RESCHEDULE_ACTIONS) return
         val app = context.applicationContext as HabitudeApplication
         work { app.rescheduleReminders() }
+    }
+
+    private companion object {
+        val RESCHEDULE_ACTIONS = setOf(
+            Intent.ACTION_BOOT_COMPLETED,
+            Intent.ACTION_MY_PACKAGE_REPLACED,
+            Intent.ACTION_TIME_CHANGED,
+            Intent.ACTION_TIMEZONE_CHANGED,
+        )
     }
 }

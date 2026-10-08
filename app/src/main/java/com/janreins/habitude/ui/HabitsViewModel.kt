@@ -11,12 +11,19 @@ import com.janreins.habitude.domain.HabitWithEntries
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 /** Every habit with its full history, for the charts. Null until the first load. */
-class HabitsViewModel(repository: HabitRepository) : ViewModel() {
+class HabitsViewModel(private val repository: HabitRepository) : ViewModel() {
 
     val habits: StateFlow<List<HabitWithEntries>?> =
         repository.habits.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** Ticks or unticks a past day (done for a build habit, slipped for a break habit). */
+    fun setEntry(habitId: Long, day: LocalDate, present: Boolean) {
+        viewModelScope.launch { repository.setEntry(habitId, day, present) }
+    }
 
     companion object {
         val Factory = viewModelFactory {

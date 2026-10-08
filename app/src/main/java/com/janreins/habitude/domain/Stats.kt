@@ -47,7 +47,7 @@ object Stats {
             HabitType.BREAK -> if (logged) DayMark.SLIP else DayMark.CLEAN
             HabitType.BUILD -> when {
                 logged -> DayMark.DONE
-                day.dayOfWeek !in habit.schedule -> DayMark.REST
+                !habit.isDue(day) -> DayMark.REST
                 day == today -> DayMark.PENDING
                 else -> DayMark.MISSED
             }
@@ -63,7 +63,7 @@ object Stats {
         var total = 0
         var day = from
         while (!day.isAfter(to)) {
-            val scheduled = day.dayOfWeek in item.habit.schedule
+            val scheduled = item.habit.isDue(day)
             when (dayMark(item, day, today)) {
                 DayMark.DONE -> if (scheduled) { hits++; total++ }
                 DayMark.MISSED -> total++

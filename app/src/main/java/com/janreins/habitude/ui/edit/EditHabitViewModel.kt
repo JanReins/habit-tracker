@@ -15,6 +15,7 @@ import com.janreins.habitude.data.HabitRepository
 import com.janreins.habitude.domain.Habit
 import com.janreins.habitude.domain.HabitType
 import com.janreins.habitude.notify.ReminderScheduler
+import com.janreins.habitude.ui.DayClock
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -46,6 +47,9 @@ class EditHabitViewModel(
 
     private val habitId: Long = savedStateHandle.get<Long>(ARG_ID) ?: 0L
 
+    /** The habit as saved, when editing one, so its schedule history carries over. */
+    private var loaded: Habit? = null
+
     var state by mutableStateOf(
         EditHabitState(
             type = savedStateHandle.get<String>(ARG_TYPE)?.let(HabitType::valueOf) ?: HabitType.BUILD,
@@ -57,6 +61,7 @@ class EditHabitViewModel(
         if (habitId != 0L) {
             viewModelScope.launch {
                 repository.getHabit(habitId)?.let { habit ->
+                    loaded = habit
                     state = EditHabitState(
                         isNew = false,
                         name = habit.name,
@@ -86,15 +91,11 @@ class EditHabitViewModel(
         val s = state
         if (!s.canSave) return
         viewModelScope.launch {
-            val habit = Habit(
-                id = habitId,
-                name = s.name.trim(),
-                emoji = s.emoji,
-                type = s.type,
-                schedule = if (s.type == HabitType.BUILD) s.schedule else DayOfWeek.entries.toSet(),
-                createdOn = s.createdOn,
-                reminderMinutes = s.reminderMinutes,
-            )
+            val schedule = if (s.type == HabitType.BUILD) s.schedule else DayOfWeek.entries.toSet()
+            // A changed schedule applies from today; earlier days keep the one they had.
+            val base = loaded?.withSchedule(schedule, DayClock.today())
+                ?: Habit(id = habitId, name = "", emoji = "", type = s.type, schedule = schedule, createdOn = s.createdOn)
+            val habit = base.copy(name = s.name.trim(), emoji = s.emoji, reminderMinutes = s.reminderMinutes)
             val id = repository.save(habit)
             reminders.schedule(habit.copy(id = id))
             onSaved()

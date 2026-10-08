@@ -20,6 +20,8 @@ class Settings(context: Context) {
         prefs.edit()
             .putString(KEY_PIN_SALT, salt)
             .putString(KEY_PIN_HASH, Pin.hash(pin, salt))
+            .remove(KEY_PIN_FAILURES)
+            .remove(KEY_PIN_LOCKED_UNTIL)
             .apply()
     }
 
@@ -29,13 +31,30 @@ class Settings(context: Context) {
         return Pin.matches(pin, salt, hash)
     }
 
+    /** Wrong PINs in a row, kept so closing the app doesn't reset the wait. */
+    var pinFailures: Int
+        get() = prefs.getInt(KEY_PIN_FAILURES, 0)
+        set(value) = prefs.edit().putInt(KEY_PIN_FAILURES, value).apply()
+
+    /** Wall-clock time (ms) until which PIN entry is paused after too many wrong tries. */
+    var pinLockedUntil: Long
+        get() = prefs.getLong(KEY_PIN_LOCKED_UNTIL, 0L)
+        set(value) = prefs.edit().putLong(KEY_PIN_LOCKED_UNTIL, value).apply()
+
     fun clearPin() {
-        prefs.edit().remove(KEY_PIN_SALT).remove(KEY_PIN_HASH).apply()
+        prefs.edit()
+            .remove(KEY_PIN_SALT)
+            .remove(KEY_PIN_HASH)
+            .remove(KEY_PIN_FAILURES)
+            .remove(KEY_PIN_LOCKED_UNTIL)
+            .apply()
     }
 
     private companion object {
         const val KEY_NUDGE = "evening_nudge"
         const val KEY_PIN_SALT = "pin_salt"
         const val KEY_PIN_HASH = "pin_hash"
+        const val KEY_PIN_FAILURES = "pin_failures"
+        const val KEY_PIN_LOCKED_UNTIL = "pin_locked_until"
     }
 }

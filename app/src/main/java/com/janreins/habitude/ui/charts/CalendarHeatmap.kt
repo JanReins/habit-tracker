@@ -4,8 +4,10 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -13,6 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -32,7 +35,8 @@ data class HeatCell(val fill: Color?, val outlined: Boolean = false, val dot: Bo
 
 /**
  * A GitHub-style calendar: one column per week (Monday at the top), the current week on
- * the right. Tap a day to see what happened in the caption underneath.
+ * the right. Tap a day to see what happened in the caption underneath, next to anything
+ * [action] puts there for that day (such as a button to change it).
  */
 @Composable
 fun CalendarHeatmap(
@@ -41,6 +45,8 @@ fun CalendarHeatmap(
     cell: (LocalDate) -> HeatCell,
     describe: (LocalDate) -> String,
     modifier: Modifier = Modifier,
+    hint: String = "Tap a day to see it",
+    action: @Composable (LocalDate) -> Unit = {},
 ) {
     val firstDay = Stats.weekStart(today).minusWeeks((weeks - 1).toLong())
     var selected by remember(today, weeks) { mutableStateOf<LocalDate?>(null) }
@@ -57,7 +63,7 @@ fun CalendarHeatmap(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(header + 17.dp * 7)
-                .pointerInput(firstDay, weeks) {
+                .pointerInput(today, weeks) {
                     detectTapGestures { tap ->
                         val colStep = (size.width - gutter.toPx()) / weeks
                         val rowStep = minOf(colStep, (size.height - header.toPx()) / 7)
@@ -118,10 +124,17 @@ fun CalendarHeatmap(
                 }
             }
         }
-        Text(
-            selected?.let(describe) ?: "Tap a day to see it",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.heightIn(min = 40.dp),
+        ) {
+            Text(
+                selected?.let(describe) ?: hint,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            selected?.let { action(it) }
+        }
     }
 }

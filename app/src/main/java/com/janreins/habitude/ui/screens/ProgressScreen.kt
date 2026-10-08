@@ -44,6 +44,7 @@ import com.janreins.habitude.ui.charts.chartPalette
 import com.janreins.habitude.ui.charts.rampColor
 import com.janreins.habitude.ui.percent
 import com.janreins.habitude.ui.plural
+import com.janreins.habitude.ui.rememberToday
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -55,7 +56,7 @@ fun ProgressScreen(
     viewModel: HabitsViewModel = viewModel(factory = HabitsViewModel.Factory),
 ) {
     val habits by viewModel.habits.collectAsStateWithLifecycle()
-    val today = remember { LocalDate.now() }
+    val today = rememberToday()
 
     Column(
         modifier = Modifier
@@ -86,12 +87,12 @@ private fun ProgressContent(items: List<HabitWithEntries>, today: LocalDate, onO
     }
 
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        val dueToday = builds.count { today.dayOfWeek in it.habit.schedule || today in it.entries }
+        val dueToday = builds.count { it.habit.isDue(today) || today in it.entries }
         val doneToday = builds.count { today in it.entries }
         val week = overall.filterKeys { !it.isBefore(today.minusDays(6)) }.values.filterNotNull()
         val bestGoing = items.maxOfOrNull { item ->
             when (item.habit.type) {
-                HabitType.BUILD -> Streaks.currentBuildStreak(item.entries, item.habit.schedule, today)
+                HabitType.BUILD -> Streaks.currentBuildStreak(item.entries, item.habit::isDue, today)
                 HabitType.BREAK -> Streaks.daysClean(item.entries, item.habit.createdOn, today)
             }
         } ?: 0

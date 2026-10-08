@@ -10,10 +10,12 @@ A small, good-looking Android app for building the habits you want and quitting 
 - **Break** habits: count your days clean, and log a slip honestly when it happens
 - Current and best streak on every habit, all stored on the phone (no account)
 - Tap a habit for its stats: a 20-week calendar heatmap, weekly completion (or slips) bars and streak history
+- Forgot to log a day? Tap it on the habit's heatmap to mark it done (or log or remove a slip)
+- Changing a habit's days applies from today on, so past streaks stay as they were
 - **Progress** tab: today at a glance, an all-habits heatmap and a 30-day rate for each habit
 - **Reminders**: an optional daily reminder per habit, with a "Done ✓" button right on the notification
 - **App lock**: an optional 6-digit PIN, asked for when you open the app or come back after a minute away
-- **Backup**: export everything to a JSON file and import it again on a new phone or after reinstalling (Settings → Backup)
+- **Backup**: export everything to a JSON file and import it again on a new phone or after reinstalling (Settings → Backup). Android's own cloud backup is off, so nothing leaves the phone unless you export it
 - **Evening streak check** at 8pm if a streak of two days or more is about to break (can be turned off in Settings)
 - A GitHub Actions build that runs the unit tests and produces a debug APK
 

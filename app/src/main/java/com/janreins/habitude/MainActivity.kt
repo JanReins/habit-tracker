@@ -1,7 +1,9 @@
 package com.janreins.habitude
 
+import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -10,12 +12,20 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import com.janreins.habitude.domain.Days
+import com.janreins.habitude.ui.DayClock
 import com.janreins.habitude.ui.lock.LockScreen
 import com.janreins.habitude.ui.navigation.HabitudeApp
 import com.janreins.habitude.ui.theme.HabitudeTheme
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.ZonedDateTime
 
 /**
  * Lock state that survives screen rotation but not the app being closed, so a restart
@@ -36,6 +46,15 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         if (lock.locked == null) lock.locked = settings.hasPin
+        // Keep "today" current: refresh whenever the app is in front, and again at each midnight.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                while (true) {
+                    DayClock.refresh()
+                    delay(Days.millisUntilTomorrow(ZonedDateTime.now()))
+                }
+            }
+        }
         setContent {
             HabitudeTheme {
                 Box {
@@ -45,6 +64,12 @@ class MainActivity : ComponentActivity() {
                         LockScreen(
                             checkPin = { pin -> withContext(Dispatchers.Default) { settings.checkPin(pin) } },
                             onUnlocked = { lock.locked = false },
+                            initialFailures = settings.pinFailures,
+                            initialLockedUntil = settings.pinLockedUntil,
+                            onAttempt = { failures, lockedUntil ->
+                                settings.pinFailures = failures
+                                settings.pinLockedUntil = lockedUntil
+                            },
                         )
                     }
                 }
@@ -54,13 +79,31 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        hideFromRecents(settings.hasPin)
         val away = SystemClock.elapsedRealtime() - lock.leftAt
         if (settings.hasPin && lock.leftAt != 0L && away > LOCK_AFTER_MS) lock.locked = true
+    }
+
+    override fun onPause() {
+        // Checked again here in case the PIN was just turned on or off in Settings.
+        hideFromRecents(settings.hasPin)
+        super.onPause()
     }
 
     override fun onStop() {
         super.onStop()
         if (!isChangingConfigurations) lock.leftAt = SystemClock.elapsedRealtime()
+    }
+
+    /** With a PIN set, the recent-apps screen shows a blank card instead of your habits. */
+    private fun hideFromRecents(hide: Boolean) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            setRecentsScreenshotEnabled(!hide)
+        } else if (hide) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
     }
 
     private companion object {

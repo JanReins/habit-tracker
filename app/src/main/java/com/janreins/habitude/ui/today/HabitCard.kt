@@ -28,6 +28,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -78,7 +83,7 @@ fun HabitCard(
                 )
             }
             if (isBuild) {
-                CheckButton(done = state.loggedToday, onClick = onToggleDone)
+                CheckButton(name = state.name, done = state.loggedToday, onClick = onToggleDone)
             } else if (state.loggedToday) {
                 TextButton(onClick = onUndoSlip) { Text("Undo") }
             } else {
@@ -92,7 +97,7 @@ fun HabitCard(
 }
 
 @Composable
-private fun CheckButton(done: Boolean, onClick: () -> Unit) {
+private fun CheckButton(name: String, done: Boolean, onClick: () -> Unit) {
     val haptics = LocalHapticFeedback.current
     val container by animateColorAsState(
         if (done) MaterialTheme.colorScheme.primary else Color.Transparent,
@@ -106,13 +111,20 @@ private fun CheckButton(done: Boolean, onClick: () -> Unit) {
         shape = CircleShape,
         color = container,
         border = if (done) null else BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
-        modifier = Modifier.size(44.dp),
+        // Read as a checkbox by screen readers, whether or not it's ticked yet.
+        modifier = Modifier
+            .size(44.dp)
+            .semantics {
+                role = Role.Checkbox
+                contentDescription = "$name, done today"
+                stateDescription = if (done) "Done" else "Not done"
+            },
     ) {
         Box(contentAlignment = Alignment.Center) {
             if (done) {
                 Icon(
                     Icons.Rounded.Check,
-                    contentDescription = "Done today",
+                    contentDescription = null,
                     tint = MaterialTheme.colorScheme.onPrimary,
                 )
             }
