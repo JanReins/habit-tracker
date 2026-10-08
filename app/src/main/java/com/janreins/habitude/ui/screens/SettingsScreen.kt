@@ -29,9 +29,36 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.janreins.habitude.HabitudeApplication
+import com.janreins.habitude.domain.Backup
+import com.janreins.habitude.domain.BackupContents
+import com.janreins.habitude.domain.BackupException
 import com.janreins.habitude.notify.Notifications
+import com.janreins.habitude.ui.lock.PinPad
+import com.janreins.habitude.ui.plural
 import com.janreins.habitude.ui.rememberNotificationPermissionRequest
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun SettingsScreen() {
@@ -107,6 +134,10 @@ fun SettingsScreen() {
             )
         }
 
+        AppLockCard(app)
+
+        BackupCard(app, onNudgeChanged = { nudge = it })
+
         SettingsCard {
             Text("About", style = MaterialTheme.typography.titleMedium)
             Text(
@@ -127,5 +158,223 @@ private fun SettingsCard(content: @Composable () -> Unit) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
     ) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { content() }
+    }
+}
+
+private enum class PinStep { VerifyToDisable, VerifyToChange, Choose, Confirm }
+
+@Composable
+private fun AppLockCard(app: HabitudeApplication) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var hasPin by remember { mutableStateOf(app.settings.hasPin) }
+    var step by remember { mutableStateOf<PinStep?>(null) }
+    var chosen by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var resetKey by remember { mutableIntStateOf(0) }
+    var busy by remember { mutableStateOf(false) }
+
+    fun start(next: PinStep) {
+        error = null
+        chosen = ""
+        step = next
+    }
+
+    fun onPin(pin: String) {
+        resetKey++
+        when (step) {
+            PinStep.Choose -> {
+                chosen = pin
+                error = null
+                step = PinStep.Confirm
+            }
+            PinStep.Confirm -> {
+                if (pin == chosen) {
+                    busy = true
+                    scope.launch {
+                        withContext(Dispatchers.Default) { app.settings.setPin(pin) }
+                        busy = false
+                        hasPin = true
+                        step = null
+                        Toast.makeText(context, "PIN set. Habitude will ask for it when you open the app.", Toast.LENGTH_LONG).show()
+                    }
+                } else {
+                    error = "Those didn't match. Choose your PIN again."
+                    step = PinStep.Choose
+                }
+            }
+            PinStep.VerifyToDisable, PinStep.VerifyToChange -> {
+                val current = step
+                busy = true
+                scope.launch {
+                    val ok = withContext(Dispatchers.Default) { app.settings.checkPin(pin) }
+                    busy = false
+                    when {
+                        !ok -> error = "That's not your current PIN."
+                        current == PinStep.VerifyToDisable -> {
+                            app.settings.clearPin()
+                            hasPin = false
+                            step = null
+                            Toast.makeText(context, "App lock is off.", Toast.LENGTH_SHORT).show()
+                        }
+                        else -> start(PinStep.Choose)
+                    }
+                }
+            }
+            null -> Unit
+        }
+    }
+
+    SettingsCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("App lock", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Ask for a 6-digit PIN when you open Habitude, or come back to it after a minute away.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(
+                checked = hasPin,
+                onCheckedChange = { on -> start(if (on) PinStep.Choose else PinStep.VerifyToDisable) },
+            )
+        }
+        if (hasPin) {
+            OutlinedButton(onClick = { start(PinStep.VerifyToChange) }) { Text("Change PIN") }
+        }
+    }
+
+    step?.let { current ->
+        Dialog(
+            onDismissRequest = { step = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                Column(
+                    Modifier
+                        .systemBarsPadding()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Row(Modifier.fillMaxWidth()) {
+                        IconButton(onClick = { step = null }) {
+                            Icon(Icons.Rounded.Close, contentDescription = "Cancel")
+                        }
+                    }
+                    Spacer(Modifier.height(24.dp))
+                    PinPad(
+                        title = when (current) {
+                            PinStep.VerifyToDisable, PinStep.VerifyToChange -> "Enter your current PIN"
+                            PinStep.Choose -> "Choose a 6-digit PIN"
+                            PinStep.Confirm -> "Enter it once more"
+                        },
+                        message = error ?: if (current == PinStep.Choose) {
+                            "If you forget it, the only way back in erases your habits. Export a backup first."
+                        } else {
+                            null
+                        },
+                        isError = error != null,
+                        enabled = !busy,
+                        resetKey = resetKey,
+                        onComplete = ::onPin,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BackupCard(app: HabitudeApplication, onNudgeChanged: (Boolean) -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var pending by remember { mutableStateOf<BackupContents?>(null) }
+    var currentCount by remember { mutableIntStateOf(0) }
+    val toast = { text: String -> Toast.makeText(context, text, Toast.LENGTH_LONG).show() }
+
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val saved = runCatching {
+                withContext(Dispatchers.IO) {
+                    val text = Backup.export(app.repository.snapshot(), app.settings.eveningNudge, LocalDateTime.now())
+                    context.contentResolver.openOutputStream(uri, "wt")!!.use { it.write(text.toByteArray()) }
+                }
+            }
+            toast(if (saved.isSuccess) "Backup saved." else "Couldn't save the backup.")
+        }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            try {
+                val text = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)!!.use { it.readBytes().decodeToString() }
+                }
+                val contents = withContext(Dispatchers.Default) { Backup.parse(text) }
+                currentCount = app.repository.snapshot().size
+                pending = contents
+            } catch (e: BackupException) {
+                toast(e.message.orEmpty())
+            } catch (e: Exception) {
+                toast("Couldn't read that file.")
+            }
+        }
+    }
+
+    SettingsCard {
+        Text("Backup", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "Save all your habits and history to a file, then import it on a new phone or after reinstalling.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            FilledTonalButton(onClick = { exportLauncher.launch("habitude-backup-${LocalDate.now()}.json") }) {
+                Text("Export")
+            }
+            OutlinedButton(onClick = { importLauncher.launch(arrayOf("application/json", "application/octet-stream", "text/plain")) }) {
+                Text("Import")
+            }
+        }
+    }
+
+    pending?.let { contents ->
+        val made = runCatching {
+            LocalDateTime.parse(contents.exportedAt).format(DateTimeFormatter.ofPattern("d MMM yyyy, HH:mm"))
+        }.getOrDefault(contents.exportedAt)
+        AlertDialog(
+            onDismissRequest = { pending = null },
+            title = { Text("Replace your data?") },
+            text = {
+                Text(
+                    "This backup from $made has ${plural(contents.habits.size, "habit")}. Importing replaces " +
+                        "the ${plural(currentCount, "habit")} on this phone and all their history.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    pending = null
+                    scope.launch {
+                        val oldIds = app.repository.snapshot().map { it.habit.id }
+                        val done = runCatching { app.repository.replaceAll(contents.habits) }
+                        if (done.isFailure) {
+                            toast("Import failed. Nothing was changed.")
+                            return@launch
+                        }
+                        contents.eveningNudge?.let {
+                            app.settings.eveningNudge = it
+                            onNudgeChanged(it)
+                        }
+                        oldIds.forEach { app.reminders.cancel(it) }
+                        app.rescheduleReminders()
+                        toast("Imported ${plural(contents.habits.size, "habit")}.")
+                    }
+                }) { Text("Replace") }
+            },
+            dismissButton = { TextButton(onClick = { pending = null }) { Text("Cancel") } },
+        )
     }
 }

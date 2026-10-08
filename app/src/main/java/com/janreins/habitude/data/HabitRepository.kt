@@ -7,9 +7,11 @@ import com.janreins.habitude.domain.Schedule
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import androidx.room.withTransaction
 import java.time.LocalDate
 
-class HabitRepository(private val dao: HabitDao) {
+class HabitRepository(private val db: HabitudeDatabase) {
+    private val dao = db.habitDao()
 
     val habits: Flow<List<HabitWithEntries>> =
         combine(dao.observeHabits(), dao.observeEntries()) { habits, entries ->
@@ -27,6 +29,18 @@ class HabitRepository(private val dao: HabitDao) {
         else habit.id.also { dao.updateHabit(habit.toEntity()) }
 
     suspend fun delete(id: Long) = dao.deleteHabit(id)
+
+    /** Swaps everything for the contents of a backup, all at once or not at all. */
+    suspend fun replaceAll(items: List<HabitWithEntries>) {
+        db.withTransaction {
+            dao.deleteAllEntries()
+            dao.deleteAllHabits()
+            dao.insertHabits(items.map { it.habit.toEntity() })
+            dao.insertEntries(
+                items.flatMap { item -> item.entries.map { EntryEntity(item.habit.id, it.toEpochDay()) } },
+            )
+        }
+    }
 
     suspend fun setEntry(habitId: Long, day: LocalDate, present: Boolean) {
         val entry = EntryEntity(habitId, day.toEpochDay())
