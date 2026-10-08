@@ -1,0 +1,48 @@
+name: Release APK
+
+# Builds the APK and attaches it to a GitHub release as habitude-<version>.apk.
+# Runs when a release is published, or by hand (Actions > Release APK > Run workflow)
+# to attach an APK to a release that already exists.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to attach the APK to (e.g. v1.1.0)
+        required: true
+      ref:
+        description: Branch, tag or commit to build
+        required: true
+        default: main
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.event.release.tag_name }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build APK
+        run: ./gradlew assembleDebug
+
+      - name: Attach APK to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          apk="habitude-${TAG#v}.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "$apk"
+          gh release upload "$TAG" "$apk" --clobber --repo "$GITHUB_REPOSITORY"
