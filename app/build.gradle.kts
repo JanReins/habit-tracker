@@ -14,8 +14,8 @@ android {
         applicationId = "com.janreins.habitude"
         minSdk = 26
         targetSdk = 35
-        versionCode = 10
-        versionName = "0.9.0"
+        versionCode = 11
+        versionName = "1.1.0"
     }
 
     signingConfigs {
