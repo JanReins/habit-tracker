@@ -25,6 +25,11 @@ class HabitsViewModel(private val repository: HabitRepository) : ViewModel() {
         viewModelScope.launch { repository.setEntry(habitId, day, present) }
     }
 
+    /** Counts a counted habit up or down on a past day. */
+    fun addCount(habitId: Long, day: LocalDate, delta: Int) {
+        viewModelScope.launch { repository.addCount(habitId, day, delta) }
+    }
+
     companion object {
         val Factory = viewModelFactory {
             initializer {

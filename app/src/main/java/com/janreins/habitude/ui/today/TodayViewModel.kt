@@ -35,6 +35,9 @@ data class HabitCardState(
     /** For a times-a-week habit: the goal, and how many days are done this week. */
     val weeklyTarget: Int? = null,
     val doneThisWeek: Int = 0,
+    /** For a habit counted through the day: the goal, and today's count so far. */
+    val dailyTarget: Int? = null,
+    val countToday: Int = 0,
 )
 
 data class TodayUiState(
@@ -72,6 +75,12 @@ class TodayViewModel(
         viewModelScope.launch { repository.setEntry(habitId, day, logged) }
     }
 
+    /** Counts a counted habit up (or down, with a negative [delta]) on the day shown. */
+    fun addCount(habitId: Long, delta: Int) {
+        val day = state.value.day ?: return
+        viewModelScope.launch { repository.addCount(habitId, day, delta) }
+    }
+
     companion object {
         val Factory = viewModelFactory {
             initializer {
@@ -93,4 +102,6 @@ internal fun HabitWithEntries.toCard(today: LocalDate): HabitCardState =
         best = Streaks.best(this, today),
         weeklyTarget = habit.weeklyTarget.takeIf { habit.isWeekly },
         doneThisWeek = Streaks.doneInWeek(entries, today, today),
+        dailyTarget = habit.dailyTarget.takeIf { habit.isCount },
+        countToday = countOn(today),
     )

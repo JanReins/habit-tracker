@@ -92,6 +92,7 @@ fun TodayScreen(
                         onToggleDone = { viewModel.setLoggedToday(card.id, !card.loggedToday) },
                         onSlip = {},
                         onUndoSlip = {},
+                        onAddCount = { delta -> viewModel.addCount(card.id, delta) },
                     )
                 }
             }

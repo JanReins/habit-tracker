@@ -1,5 +1,6 @@
 package com.janreins.habitude.data
 
+import com.janreins.habitude.domain.Counts
 import com.janreins.habitude.domain.Habit
 import com.janreins.habitude.domain.HabitType
 import com.janreins.habitude.domain.HabitWithEntries
@@ -15,10 +16,22 @@ class HabitRepository(private val db: HabitudeDatabase) {
     private val dao = db.habitDao()
 
     val habits: Flow<List<HabitWithEntries>> =
-        combine(dao.observeHabits(), dao.observeEntries(), dao.observePastSchedules()) { habits, entries, past ->
+        combine(
+            dao.observeHabits(),
+            dao.observeEntries(),
+            dao.observePastSchedules(),
+            dao.observeCounts(),
+        ) { habits, entries, past, counts ->
             val byHabit = entries.groupBy({ it.habitId }, { LocalDate.ofEpochDay(it.epochDay) })
             val pastByHabit = past.groupBy { it.habitId }
-            habits.map { HabitWithEntries(it.toDomain(pastByHabit[it.id].orEmpty()), byHabit[it.id].orEmpty().toSet()) }
+            val countsByHabit = counts.groupBy { it.habitId }
+            habits.map {
+                HabitWithEntries(
+                    habit = it.toDomain(pastByHabit[it.id].orEmpty()),
+                    entries = byHabit[it.id].orEmpty().toSet(),
+                    counts = countsByHabit[it.id].orEmpty().associate { c -> LocalDate.ofEpochDay(c.epochDay) to c.amount },
+                )
+            }
         }
 
     suspend fun getHabit(id: Long): Habit? = dao.getHabit(id)?.toDomain(dao.getPastSchedules(id))
@@ -38,6 +51,7 @@ class HabitRepository(private val db: HabitudeDatabase) {
     /** Swaps everything for the contents of a backup, all at once or not at all. */
     suspend fun replaceAll(items: List<HabitWithEntries>) {
         db.withTransaction {
+            dao.deleteAllCounts()
             dao.deleteAllEntries()
             dao.deleteAllPastSchedules()
             dao.deleteAllHabits()
@@ -46,12 +60,46 @@ class HabitRepository(private val db: HabitudeDatabase) {
                 items.flatMap { item -> item.entries.map { EntryEntity(item.habit.id, it.toEpochDay()) } },
             )
             dao.insertPastSchedules(items.flatMap { it.habit.pastScheduleEntities() })
+            dao.insertCounts(
+                items.flatMap { item -> item.counts.map { (day, n) -> DayCountEntity(item.habit.id, day.toEpochDay(), n) } },
+            )
         }
     }
 
     suspend fun setEntry(habitId: Long, day: LocalDate, present: Boolean) {
         val entry = EntryEntity(habitId, day.toEpochDay())
         if (present) dao.insertEntry(entry) else dao.deleteEntry(entry)
+    }
+
+    /**
+     * Adds [delta] (negative to take some off) to a counted habit's count for [day], and marks
+     * the day done or not done to match. Read and written in one go, so quick taps all count.
+     */
+    suspend fun addCount(habitId: Long, day: LocalDate, delta: Int) {
+        db.withTransaction {
+            val target = dao.getHabit(habitId)?.dailyTarget ?: return@withTransaction
+            val epochDay = day.toEpochDay()
+            val count = Counts.next(dao.getCount(habitId, epochDay), dao.hasEntry(habitId, epochDay), target, delta)
+            writeCount(habitId, epochDay, count, target)
+        }
+    }
+
+    /**
+     * After a counted habit's goal changes, marks [day] done or not done by the new goal.
+     * Earlier days keep what they had, the same way a schedule change leaves the past alone.
+     */
+    suspend fun recheckCount(habitId: Long, day: LocalDate) {
+        db.withTransaction {
+            val target = dao.getHabit(habitId)?.dailyTarget ?: return@withTransaction
+            val count = dao.getCount(habitId, day.toEpochDay()) ?: return@withTransaction
+            writeCount(habitId, day.toEpochDay(), count, target)
+        }
+    }
+
+    private suspend fun writeCount(habitId: Long, epochDay: Long, count: Int, target: Int) {
+        if (count > 0) dao.upsertCount(DayCountEntity(habitId, epochDay, count)) else dao.deleteCount(habitId, epochDay)
+        val entry = EntryEntity(habitId, epochDay)
+        if (Counts.isDone(count, target)) dao.insertEntry(entry) else dao.deleteEntry(entry)
     }
 }
 
@@ -65,6 +113,7 @@ private fun HabitEntity.toDomain(past: List<PastScheduleEntity>) = Habit(
     reminderMinutes = reminderMinutes,
     archived = archived,
     weeklyTarget = weeklyTarget,
+    dailyTarget = dailyTarget,
     pastSchedules = past.sortedBy { it.untilEpochDay }.map {
         PastSchedule(LocalDate.ofEpochDay(it.untilEpochDay), Schedule.fromMask(it.scheduleMask))
     },
@@ -84,4 +133,5 @@ private fun Habit.toEntity() = HabitEntity(
     reminderMinutes = reminderMinutes,
     archived = archived,
     weeklyTarget = weeklyTarget,
+    dailyTarget = dailyTarget,
 )

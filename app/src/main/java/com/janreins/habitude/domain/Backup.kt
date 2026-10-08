@@ -40,6 +40,10 @@ data class BackupHabit(
     val archived: Boolean = false,
     /** Times a week, for a habit with a weekly goal instead of set days. */
     val weeklyTarget: Int? = null,
+    /** How many make a day done, for a habit counted through the day. */
+    val dailyTarget: Int? = null,
+    /** yyyy-MM-dd to the count that day, for a counted habit. */
+    val counts: Map<String, Int> = emptyMap(),
 )
 
 @Serializable
@@ -74,7 +78,7 @@ object Backup {
             BackupFile(
                 exportedAt = now.withNano(0).toString(),
                 eveningNudge = eveningNudge,
-                habits = items.map { (habit, entries) ->
+                habits = items.map { (habit, entries, counts) ->
                     BackupHabit(
                         id = habit.id,
                         name = habit.name,
@@ -89,6 +93,8 @@ object Backup {
                         },
                         archived = habit.archived,
                         weeklyTarget = habit.weeklyTarget,
+                        dailyTarget = habit.dailyTarget,
+                        counts = counts.toSortedMap().mapKeys { it.key.toString() },
                     )
                 },
             ),
@@ -134,8 +140,13 @@ object Backup {
                             .sortedBy { it.until },
                         archived = h.archived,
                         weeklyTarget = h.weeklyTarget?.takeIf { type == HabitType.BUILD && it in 1..6 },
+                        dailyTarget = h.dailyTarget?.takeIf { type == HabitType.BUILD && it in 2..Counts.MAX_TARGET },
                     ),
                     entries = h.entries.map { LocalDate.parse(it) }.toSet(),
+                    counts = h.counts
+                        .mapKeys { LocalDate.parse(it.key) }
+                        .mapValues { it.value.coerceIn(0, Counts.MAX_COUNT) }
+                        .filterValues { it > 0 },
                 )
             } catch (e: IllegalArgumentException) {
                 throw BackupException("This backup is damaged: \"${h.name}\" couldn't be read.")

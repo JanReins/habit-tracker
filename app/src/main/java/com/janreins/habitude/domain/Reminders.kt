@@ -39,7 +39,8 @@ object Reminders {
                 if (!habit.isDue(today)) return null
                 val streak = Streaks.currentBuildStreak(item.entries, habit::isDue, today)
                 val body = if (streak > 0) "Keep your ${dayWord(streak)} streak going 🔥" else "A good day to start a streak."
-                ReminderText(title, body)
+                val counted = habit.dailyTarget?.let { "${item.countOn(today)} of $it so far today. " }.orEmpty()
+                ReminderText(title, counted + body)
             }
         }
     }

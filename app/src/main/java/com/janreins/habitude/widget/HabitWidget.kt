@@ -77,14 +77,19 @@ class HabitWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = HabitWidget()
 }
 
-/** Ticks or unticks a habit for today from the widget. */
+/** Ticks or unticks a habit for today from the widget, or counts a counted habit up by one. */
 class ToggleHabitAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         val habitId = parameters[HabitIdKey] ?: return
         val repository = (context.applicationContext as HabitudeApplication).repository
         val today = LocalDate.now()
         val item = repository.snapshot().firstOrNull { it.habit.id == habitId } ?: return
-        repository.setEntry(habitId, today, present = today !in item.entries)
+        // A counted habit adds one per tap; take one off in the app.
+        if (item.habit.isCount) {
+            repository.addCount(habitId, today, 1)
+        } else {
+            repository.setEntry(habitId, today, present = today !in item.entries)
+        }
         HabitWidget().update(context, glanceId)
     }
 }
@@ -128,7 +133,7 @@ private fun WidgetContent(items: List<HabitWithEntries>, today: LocalDate) {
         } else {
             LazyColumn {
                 items(list, itemId = { it.habit.id }) { item ->
-                    HabitRow(item, done = today in item.entries)
+                    HabitRow(item, done = today in item.entries, count = item.countOn(today))
                 }
             }
         }
@@ -136,7 +141,8 @@ private fun WidgetContent(items: List<HabitWithEntries>, today: LocalDate) {
 }
 
 @Composable
-private fun HabitRow(item: HabitWithEntries, done: Boolean) {
+private fun HabitRow(item: HabitWithEntries, done: Boolean, count: Int) {
+    val target = item.habit.dailyTarget
     Row(
         modifier = GlanceModifier
             .fillMaxWidth()
@@ -152,6 +158,13 @@ private fun HabitRow(item: HabitWithEntries, done: Boolean) {
             style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 14.sp),
             modifier = GlanceModifier.defaultWeight(),
         )
+        if (target != null) {
+            Text(
+                "$count/$target",
+                style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 13.sp),
+            )
+            Spacer(GlanceModifier.width(8.dp))
+        }
         Box(
             modifier = GlanceModifier
                 .size(28.dp)
@@ -163,6 +176,11 @@ private fun HabitRow(item: HabitWithEntries, done: Boolean) {
                 Text(
                     "✓",
                     style = TextStyle(color = GlanceTheme.colors.onPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold),
+                )
+            } else if (target != null) {
+                Text(
+                    "+",
+                    style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 15.sp, fontWeight = FontWeight.Bold),
                 )
             }
         }
