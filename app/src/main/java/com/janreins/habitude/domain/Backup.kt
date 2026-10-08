@@ -35,6 +35,16 @@ data class BackupHabit(
     val reminderMinutes: Int? = null,
     /** yyyy-MM-dd for every day done (build) or slipped (break). */
     val entries: List<String>,
+    /** Earlier schedules, oldest first. Missing in backups from before schedule history. */
+    val pastSchedules: List<BackupPastSchedule> = emptyList(),
+)
+
+@Serializable
+data class BackupPastSchedule(
+    /** yyyy-MM-dd, the last day this schedule applied. */
+    val until: String,
+    /** ISO day numbers, 1 = Monday … 7 = Sunday. */
+    val days: List<Int>,
 )
 
 data class BackupContents(
@@ -71,6 +81,9 @@ object Backup {
                         createdOn = habit.createdOn.toString(),
                         reminderMinutes = habit.reminderMinutes,
                         entries = entries.sorted().map { it.toString() },
+                        pastSchedules = habit.pastSchedules.map { past ->
+                            BackupPastSchedule(past.until.toString(), past.days.map { it.value }.sorted())
+                        },
                     )
                 },
             ),
@@ -105,6 +118,15 @@ object Backup {
                         schedule = days.ifEmpty { DayOfWeek.entries.toSet() },
                         createdOn = LocalDate.parse(h.createdOn),
                         reminderMinutes = h.reminderMinutes?.takeIf { it in 0 until 24 * 60 },
+                        pastSchedules = h.pastSchedules
+                            .map { past ->
+                                PastSchedule(
+                                    LocalDate.parse(past.until),
+                                    past.days.map { DayOfWeek.of(it) }.toSet().ifEmpty { DayOfWeek.entries.toSet() },
+                                )
+                            }
+                            .distinctBy { it.until }
+                            .sortedBy { it.until },
                     ),
                     entries = h.entries.map { LocalDate.parse(it) }.toSet(),
                 )

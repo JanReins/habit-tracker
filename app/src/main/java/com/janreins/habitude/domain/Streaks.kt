@@ -17,25 +17,30 @@ import java.time.temporal.ChronoUnit
  */
 object Streaks {
 
-    fun currentBuildStreak(done: Set<LocalDate>, schedule: Set<DayOfWeek>, today: LocalDate): Int {
+    fun currentBuildStreak(done: Set<LocalDate>, schedule: Set<DayOfWeek>, today: LocalDate): Int =
+        currentBuildStreak(done, fixed(schedule), today)
+
+    fun bestBuildStreak(done: Set<LocalDate>, schedule: Set<DayOfWeek>, today: LocalDate): Int =
+        bestBuildStreak(done, fixed(schedule), today)
+
+    /** [isDue] says whether a day was scheduled, e.g. [Habit.isDue]. */
+    fun currentBuildStreak(done: Set<LocalDate>, isDue: (LocalDate) -> Boolean, today: LocalDate): Int {
         val earliest = done.minOrNull() ?: return 0
-        val days = schedule.ifEmpty { DayOfWeek.entries.toSet() }
         var day = today
         var streak = 0
         while (!day.isBefore(earliest)) {
             when {
                 day in done -> streak++
                 day == today -> Unit
-                day.dayOfWeek in days -> return streak
+                isDue(day) -> return streak
             }
             day = day.minusDays(1)
         }
         return streak
     }
 
-    fun bestBuildStreak(done: Set<LocalDate>, schedule: Set<DayOfWeek>, today: LocalDate): Int {
+    fun bestBuildStreak(done: Set<LocalDate>, isDue: (LocalDate) -> Boolean, today: LocalDate): Int {
         val earliest = done.minOrNull() ?: return 0
-        val days = schedule.ifEmpty { DayOfWeek.entries.toSet() }
         var day = earliest
         var run = 0
         var best = 0
@@ -46,11 +51,16 @@ object Streaks {
                     best = maxOf(best, run)
                 }
                 day == today -> Unit
-                day.dayOfWeek in days -> run = 0
+                isDue(day) -> run = 0
             }
             day = day.plusDays(1)
         }
         return best
+    }
+
+    private fun fixed(schedule: Set<DayOfWeek>): (LocalDate) -> Boolean {
+        val days = schedule.ifEmpty { DayOfWeek.entries.toSet() }
+        return { it.dayOfWeek in days }
     }
 
     fun daysClean(slips: Set<LocalDate>, startedOn: LocalDate, today: LocalDate): Int {

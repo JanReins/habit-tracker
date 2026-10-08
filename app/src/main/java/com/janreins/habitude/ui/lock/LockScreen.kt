@@ -1,7 +1,6 @@
 package com.janreins.habitude.ui.lock
 
 import android.app.Activity
-import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -29,16 +28,23 @@ import com.janreins.habitude.domain.Pin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/** Covers the whole app until the right PIN is entered. */
+/**
+ * Covers the whole app until the right PIN is entered. [initialFailures] and
+ * [initialLockedUntil] (wall-clock ms) come from storage, and every attempt is reported through
+ * [onAttempt], so closing the app doesn't reset the wait after too many wrong tries.
+ */
 @Composable
 fun LockScreen(
     checkPin: suspend (String) -> Boolean,
     onUnlocked: () -> Unit,
+    initialFailures: Int,
+    initialLockedUntil: Long,
+    onAttempt: (failures: Int, lockedUntil: Long) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var failures by rememberSaveable { mutableIntStateOf(0) }
-    var waitUntil by rememberSaveable { mutableLongStateOf(0L) }
+    var failures by rememberSaveable { mutableIntStateOf(initialFailures) }
+    var waitUntil by rememberSaveable { mutableLongStateOf(initialLockedUntil) }
     var secondsLeft by rememberSaveable { mutableIntStateOf(0) }
     var checking by rememberSaveable { mutableStateOf(false) }
     var resetKey by rememberSaveable { mutableIntStateOf(0) }
@@ -47,8 +53,11 @@ fun LockScreen(
     BackHandler { (context as? Activity)?.moveTaskToBack(true) }
 
     LaunchedEffect(waitUntil) {
+        // Capped at the longest wait this many failures earns, in case the clock was set back.
+        val longest = Pin.lockoutSeconds(failures) * 1000L
         while (true) {
-            secondsLeft = ((waitUntil - SystemClock.elapsedRealtime()) / 1000).toInt().coerceAtLeast(0)
+            val left = (waitUntil - System.currentTimeMillis()).coerceIn(0L, longest)
+            secondsLeft = ((left + 999) / 1000).toInt()
             if (secondsLeft == 0) break
             delay(250)
         }
@@ -56,7 +65,7 @@ fun LockScreen(
 
     val message = when {
         secondsLeft > 0 -> "Too many tries. Wait ${secondsLeft}s."
-        failures > 0 -> "Wrong PIN. Try again."
+        resetKey > 0 -> "Wrong PIN. Try again."
         else -> null
     }
 
@@ -76,7 +85,7 @@ fun LockScreen(
             PinPad(
                 title = "Enter your PIN",
                 message = message,
-                isError = failures > 0,
+                isError = resetKey > 0 || secondsLeft > 0,
                 enabled = secondsLeft == 0 && !checking,
                 resetKey = resetKey,
                 onComplete = { pin ->
@@ -86,12 +95,15 @@ fun LockScreen(
                         checking = false
                         if (ok) {
                             failures = 0
+                            waitUntil = 0L
+                            onAttempt(0, 0L)
                             onUnlocked()
                         } else {
                             failures++
                             resetKey++
                             val wait = Pin.lockoutSeconds(failures)
-                            if (wait > 0) waitUntil = SystemClock.elapsedRealtime() + wait * 1000L
+                            if (wait > 0) waitUntil = System.currentTimeMillis() + wait * 1000L
+                            onAttempt(failures, waitUntil)
                         }
                     }
                 },

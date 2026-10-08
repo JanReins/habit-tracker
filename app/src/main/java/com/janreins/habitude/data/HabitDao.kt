@@ -16,6 +16,21 @@ interface HabitDao {
     @Query("SELECT * FROM entries")
     fun observeEntries(): Flow<List<EntryEntity>>
 
+    @Query("SELECT * FROM past_schedules ORDER BY untilEpochDay")
+    fun observePastSchedules(): Flow<List<PastScheduleEntity>>
+
+    @Query("SELECT * FROM past_schedules WHERE habitId = :habitId ORDER BY untilEpochDay")
+    suspend fun getPastSchedules(habitId: Long): List<PastScheduleEntity>
+
+    @Query("DELETE FROM past_schedules WHERE habitId = :habitId")
+    suspend fun deletePastSchedules(habitId: Long)
+
+    @Query("DELETE FROM past_schedules")
+    suspend fun deleteAllPastSchedules()
+
+    @Insert
+    suspend fun insertPastSchedules(schedules: List<PastScheduleEntity>)
+
     @Query("SELECT * FROM habits WHERE id = :id")
     suspend fun getHabit(id: Long): HabitEntity?
 

@@ -14,6 +14,7 @@ import androidx.core.content.ContextCompat
 import com.janreins.habitude.MainActivity
 import com.janreins.habitude.R
 import com.janreins.habitude.domain.ReminderText
+import java.time.LocalDate
 
 object Notifications {
     const val CHANNEL_REMINDERS = "reminders"
@@ -42,14 +43,19 @@ object Notifications {
     fun canPost(context: Context): Boolean =
         !needsRuntimePermission(context) && NotificationManagerCompat.from(context).areNotificationsEnabled()
 
-    /** A habit reminder. Build habits get a "Done" button that ticks them off without opening the app. */
-    fun showReminder(context: Context, habitId: Long, text: ReminderText, offerDone: Boolean) {
+    /**
+     * A habit reminder for [day]. Build habits get a "Done" button that ticks them off without
+     * opening the app, for that day even if it's tapped after midnight.
+     */
+    fun showReminder(context: Context, habitId: Long, day: LocalDate, text: ReminderText, offerDone: Boolean) {
         val builder = base(context, CHANNEL_REMINDERS, text)
         if (offerDone) {
             val done = PendingIntent.getBroadcast(
                 context,
                 habitId.toInt(),
-                Intent(context, DoneReceiver::class.java).putExtra(EXTRA_HABIT_ID, habitId),
+                Intent(context, DoneReceiver::class.java)
+                    .putExtra(EXTRA_HABIT_ID, habitId)
+                    .putExtra(EXTRA_EPOCH_DAY, day.toEpochDay()),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
             builder.addAction(R.drawable.ic_notification, "Done ✓", done)
@@ -91,3 +97,4 @@ object Notifications {
 }
 
 const val EXTRA_HABIT_ID = "habit_id"
+const val EXTRA_EPOCH_DAY = "epoch_day"

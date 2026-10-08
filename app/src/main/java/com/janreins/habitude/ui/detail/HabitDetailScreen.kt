@@ -14,6 +14,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -42,6 +43,7 @@ import com.janreins.habitude.ui.charts.chartPalette
 import com.janreins.habitude.ui.dayCaption
 import com.janreins.habitude.ui.percent
 import com.janreins.habitude.ui.plural
+import com.janreins.habitude.ui.rememberToday
 import com.janreins.habitude.ui.weekLabel
 import java.time.LocalDate
 import kotlin.math.ceil
@@ -88,13 +90,13 @@ fun HabitDetailScreen(
                 Icon(Icons.Outlined.Edit, contentDescription = "Edit habit")
             }
         }
-        HabitStats(item)
+        HabitStats(item, onSetEntry = { day, present -> viewModel.setEntry(habitId, day, present) })
     }
 }
 
 @Composable
-private fun HabitStats(item: HabitWithEntries) {
-    val today = remember { LocalDate.now() }
+private fun HabitStats(item: HabitWithEntries, onSetEntry: (LocalDate, Boolean) -> Unit) {
+    val today = rememberToday()
     val palette = chartPalette()
     val habit = item.habit
     val isBuild = habit.type == HabitType.BUILD
@@ -104,12 +106,12 @@ private fun HabitStats(item: HabitWithEntries) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         if (isBuild) {
             StatTile(
-                "${Streaks.currentBuildStreak(item.entries, habit.schedule, today)}",
+                "${Streaks.currentBuildStreak(item.entries, habit::isDue, today)}",
                 "Streak 🔥",
                 Modifier.weight(1f),
             )
             StatTile(
-                "${Streaks.bestBuildStreak(item.entries, habit.schedule, today)}",
+                "${Streaks.bestBuildStreak(item.entries, habit::isDue, today)}",
                 "Best",
                 Modifier.weight(1f),
             )
@@ -140,6 +142,23 @@ private fun HabitStats(item: HabitWithEntries) {
                 }
             },
             describe = { day -> dayCaption(day, Stats.dayMark(item, day, today)) },
+            hint = "Tap a day to see or change it",
+            action = { day ->
+                // Forgot to log a day? Fix it here. Days before the habit started stay empty.
+                if (!day.isBefore(habit.createdOn)) {
+                    val logged = day in item.entries
+                    TextButton(onClick = { onSetEntry(day, !logged) }) {
+                        Text(
+                            when {
+                                isBuild && logged -> "Undo done"
+                                isBuild -> "Mark done"
+                                logged -> "Remove slip"
+                                else -> "Log a slip"
+                            },
+                        )
+                    }
+                }
+            },
         )
         Legend(
             if (isBuild) {

@@ -24,8 +24,8 @@ object Reminders {
         val title = "${habit.emoji} ${habit.name}"
         return when (habit.type) {
             HabitType.BUILD -> {
-                if (today in item.entries || today.dayOfWeek !in habit.schedule) return null
-                val streak = Streaks.currentBuildStreak(item.entries, habit.schedule, today)
+                if (today in item.entries || !habit.isDue(today)) return null
+                val streak = Streaks.currentBuildStreak(item.entries, habit::isDue, today)
                 val body = if (streak > 0) "Keep your ${dayWord(streak)} streak going 🔥" else "A good day to start a streak."
                 ReminderText(title, body)
             }
@@ -41,8 +41,8 @@ object Reminders {
     /** Build habits due today, not done yet, with a streak of at least [minStreak] that would break tonight. */
     fun atRisk(items: List<HabitWithEntries>, today: LocalDate, minStreak: Int = 2): List<Pair<HabitWithEntries, Int>> =
         items
-            .filter { it.habit.type == HabitType.BUILD && today.dayOfWeek in it.habit.schedule && today !in it.entries }
-            .map { it to Streaks.currentBuildStreak(it.entries, it.habit.schedule, today) }
+            .filter { it.habit.type == HabitType.BUILD && it.habit.isDue(today) && today !in it.entries }
+            .map { it to Streaks.currentBuildStreak(it.entries, it.habit::isDue, today) }
             .filter { (_, streak) -> streak >= minStreak }
             .sortedByDescending { (_, streak) -> streak }
 

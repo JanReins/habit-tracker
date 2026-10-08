@@ -38,3 +38,24 @@ data class EntryEntity(
     val habitId: Long,
     val epochDay: Long,
 )
+
+/** A schedule a build habit used to have, up to and including [untilEpochDay]. */
+@Entity(
+    tableName = "past_schedules",
+    primaryKeys = ["habitId", "untilEpochDay"],
+    foreignKeys = [
+        ForeignKey(
+            entity = HabitEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["habitId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("habitId")],
+)
+data class PastScheduleEntity(
+    val habitId: Long,
+    val untilEpochDay: Long,
+    /** Bit 0 = Monday … bit 6 = Sunday. */
+    val scheduleMask: Int,
+)
