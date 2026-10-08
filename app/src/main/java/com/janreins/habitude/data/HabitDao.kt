@@ -31,6 +31,18 @@ interface HabitDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertEntry(entry: EntryEntity)
 
+    @Insert
+    suspend fun insertHabits(habits: List<HabitEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertEntries(entries: List<EntryEntity>)
+
+    @Query("DELETE FROM habits")
+    suspend fun deleteAllHabits()
+
+    @Query("DELETE FROM entries")
+    suspend fun deleteAllEntries()
+
     @Delete
     suspend fun deleteEntry(entry: EntryEntity)
 }

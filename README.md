@@ -12,12 +12,16 @@ A small, good-looking Android app for building the habits you want and quitting 
 - Tap a habit for its stats: a 20-week calendar heatmap, weekly completion (or slips) bars and streak history
 - **Progress** tab: today at a glance, an all-habits heatmap and a 30-day rate for each habit
 - **Reminders**: an optional daily reminder per habit, with a "Done ✓" button right on the notification
+- **App lock**: an optional 6-digit PIN, asked for when you open the app or come back after a minute away
+- **Backup**: export everything to a JSON file and import it again on a new phone or after reinstalling (Settings → Backup)
 - **Evening streak check** at 8pm if a streak of two days or more is about to break (can be turned off in Settings)
 - A GitHub Actions build that runs the unit tests and produces a debug APK
 
 ## Get the APK
 
 Open the latest run under **Actions → Android build** and download the `habitude-debug-apk` artifact. Unzip it and install `app-debug.apk` on your phone (you may need to allow installs from unknown sources).
+
+Every build is signed with the same key (`app/debug.keystore`), so a new APK installs over the old one and keeps your data. Builds made before version 0.5.0 used a random key each time, so uninstall those once before installing 0.5.0 or later. Export a backup first if you want to keep what you have.
 
 ## Build locally
 
