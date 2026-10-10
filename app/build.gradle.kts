@@ -14,8 +14,13 @@ android {
         applicationId = "com.janreins.habitude"
         minSdk = 26
         targetSdk = 35
-        versionCode = 11
-        versionName = "1.1.0"
+        // The release workflow passes HABIT_VERSION_CODE (100 + run number, so always above the
+        // old hard-coded 11) and HABIT_VERSION_NAME (the tag without its "v", or 1.1.<run>).
+        // Local builds keep 11 / 1.1.0.
+        versionCode = providers.environmentVariable("HABIT_VERSION_CODE").orNull?.let {
+            it.toIntOrNull() ?: throw GradleException("HABIT_VERSION_CODE must be a whole number, got '$it'.")
+        } ?: 11
+        versionName = providers.environmentVariable("HABIT_VERSION_NAME").orNull?.takeIf { it.isNotBlank() } ?: "1.1.0"
     }
 
     signingConfigs {
@@ -27,10 +32,23 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+        // Release key from environment variables (set by .github/workflows/release.yml from the
+        // repository secrets, or by hand). There is deliberately no fallback to the debug key:
+        // a release APK signed with anything else can't be installed over the previous release.
+        // If the variables are missing, checkReleaseSigning (below) stops any release packaging
+        // task with a clear message. Debug builds, tests and lint don't need them.
+        create("release") {
+            storeFile = providers.environmentVariable("HABIT_KEYSTORE_FILE").orNull
+                ?.takeIf { it.isNotBlank() }?.let { file(it) }
+            storePassword = providers.environmentVariable("HABIT_KEYSTORE_PASSWORD").orNull
+            keyAlias = providers.environmentVariable("HABIT_KEY_ALIAS").orNull
+            keyPassword = providers.environmentVariable("HABIT_KEY_PASSWORD").orNull
+        }
     }
 
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
@@ -45,6 +63,40 @@ android {
     buildFeatures {
         compose = true
     }
+}
+
+// Fails release packaging (assembleRelease, bundleRelease, ...) when the release key isn't
+// configured. The check runs at execution time, so configuring the project, debug builds,
+// unit tests and lint all work without the variables.
+val releaseSigningVars = listOf(
+    "HABIT_KEYSTORE_FILE",
+    "HABIT_KEYSTORE_PASSWORD",
+    "HABIT_KEY_ALIAS",
+    "HABIT_KEY_PASSWORD",
+)
+val releaseSigningEnv = releaseSigningVars.associateWith { providers.environmentVariable(it) }
+val checkReleaseSigning = tasks.register("checkReleaseSigning") {
+    group = "verification"
+    description = "Fails unless the HABIT_* release signing environment variables are set."
+    doLast {
+        val missing = releaseSigningEnv.filterValues { it.orNull.isNullOrBlank() }.keys
+        if (missing.isNotEmpty()) {
+            throw GradleException(
+                "Release signing is not configured: missing ${missing.joinToString()}. " +
+                    "Set ${releaseSigningVars.joinToString()} to sign the release build " +
+                    "(release builds are never signed with the debug key)."
+            )
+        }
+        val keystore = File(releaseSigningEnv.getValue("HABIT_KEYSTORE_FILE").get())
+        if (!keystore.isFile) {
+            throw GradleException("Release signing is not configured: HABIT_KEYSTORE_FILE points to '$keystore', which doesn't exist.")
+        }
+    }
+}
+tasks.matching {
+    it.name in setOf("validateSigningRelease", "packageRelease", "signReleaseBundle", "packageReleaseBundle")
+}.configureEach {
+    dependsOn(checkReleaseSigning)
 }
 
 dependencies {
